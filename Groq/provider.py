@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Groq Provider Setup and Configuration
+Groq Provider Setup and Configuration for VEXIS-CLI-3
 Handles Groq API key prompting, model selection, and provider configuration
 """
 

@@ -23,15 +23,23 @@ def load_config():
 def update_log(message):
     log_file = "session.log"
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(log_file, "a") as f:
-        f.write(f"[{timestamp}] {message}\n")
-
-    # Efficient log rotation - read once
-    with open(log_file, "r") as f:
-        lines = f.readlines()
-        if len(lines) > 100:
-            with open(log_file, "w") as f:
+    import fcntl
+    with open(log_file, "a+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            f.write(f"[{timestamp}] {message}\n")
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+    with open(log_file, "r+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            lines = f.readlines()
+            if len(lines) > 100:
+                f.seek(0)
+                f.truncate()
                 f.writelines(lines[-100:])
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 def autonomous_loop():
     config = load_config()

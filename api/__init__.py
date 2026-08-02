@@ -1,14 +1,14 @@
 """
-VEXIS Unified API Package
+VEXIS-CLI-3 Unified API Package
 
 A unified interface for multiple LLM providers including Google Gemini and OpenAI.
 
 Usage:
     from api import LLMFactory, ProviderType, GenerationConfig
-    
+
     # Create a client
     client = LLMFactory.create(ProviderType.GOOGLE, api_key="your-key")
-    
+
     # Generate text
     response = client.generate("Hello, how are you?")
     print(response.content)
@@ -27,7 +27,7 @@ Providers:
     - Groq (OpenAI-compatible)
     - Together AI (OpenAI-compatible)
     - MiniMax (OpenAI-compatible)
-    
+
 Adding New Providers:
     1. Create a new file (e.g., api/anthropic_client.py)
     2. Implement BaseLLM interface
@@ -222,14 +222,17 @@ def create_client(
         "zhipu": ProviderType.ZHIPUAI,
         "glm": ProviderType.ZHIPUAI,
     }
-    
+
+    if provider not in provider_map:
+        raise ValueError(f"Unknown provider: '{provider}'. Available: {sorted(provider_map.keys())}")
+
     return LLMFactory.create(provider_map[provider], api_key=api_key, **kwargs)
 
 
 def get_available_providers() -> list:
     """Get list of available provider names"""
     return [
-        "google", "openai", "anthropic", "xai", "meta", 
-        "mistral", "microsoft", "amazon", "cohere", 
+        "google", "openai", "anthropic", "xai", "meta",
+        "mistral", "microsoft", "amazon", "cohere",
         "deepseek", "groq", "together", "minimax", "zhipuai"
     ]

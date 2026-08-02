@@ -92,6 +92,12 @@ PROVIDER_SDKS = {
         "import_name": "openai",
         "install_command": "pip install openai",
         "description": "Z.ai/ZhipuAI GLM models (uses OpenAI SDK)"
+    },
+    "minimax": {
+        "package": "openai",  # MiniMax uses OpenAI-compatible API
+        "import_name": "openai",
+        "install_command": "pip install openai",
+        "description": "MiniMax M2-series models (uses OpenAI SDK)"
     }
 }
 

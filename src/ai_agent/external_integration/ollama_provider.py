@@ -5,7 +5,7 @@ Direct API calls to Ollama - no magic, no auto-fixes
 
 import requests
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from ..utils.logger import get_logger
 
@@ -167,7 +167,7 @@ class SimpleOllamaProvider:
             response = requests.post(
                 f"{self.endpoint}/api/chat",
                 json=payload,
-                timeout=self.timeout
+                timeout=timeout  # Use computed timeout variable
             )
 
             # Log response details for debugging
@@ -321,3 +321,15 @@ class SimpleOllamaProvider:
             return response.status_code == 200
         except (requests.RequestException, TimeoutError):
             return False
+
+    def get_available_models(self) -> List[str]:
+        """Get list of available Ollama models"""
+        try:
+            response = requests.get(f"{self.endpoint}/api/tags", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                models = data.get("models", [])
+                return [m.get("name", "") for m in models if m.get("name")]
+        except Exception:
+            pass
+        return []

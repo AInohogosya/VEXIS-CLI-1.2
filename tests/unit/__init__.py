@@ -1,1 +1,1 @@
-"""Unit tests for VEXIS-CLI"""
+"""Unit tests for VEXIS-CLI-3"""

@@ -71,6 +71,7 @@ def test_runtime_options_are_applied_to_engine(monkeypatch):
             end_time = time.time()
             error = None
             final_summary = None
+            action_type = None
 
         from ai_agent.core_processing.five_phase_engine import PipelinePhase
 

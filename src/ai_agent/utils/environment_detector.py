@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Environment Detection and Adaptive Execution System for VEXIS-CLI-2.2
+Environment Detection and Adaptive Execution System for VEXIS-CLI-3.0
 Gathers system data and adapts execution based on the environment
 """
 
@@ -541,11 +541,17 @@ class AdaptiveExecutor:
                             text=True, timeout=300
                         )
                     else:
-                        # Fall back for complex commands
-                        result = subprocess.run(
-                            cmd, shell=True, capture_output=True,
-                            text=True, timeout=300
-                        )
+                        allowed_commands = ['apt', 'yum', 'ollama', 'python3', 'pip']
+                        is_allowed = any(cmd.startswith(ac) or f' {ac} ' in cmd for ac in allowed_commands)
+                        if is_allowed:
+                            result = subprocess.run(
+                                cmd, shell=True, capture_output=True,
+                                text=True, timeout=300
+                            )
+                        else:
+                            print(f"  ⚠ Skipped: Command contains potentially unsafe patterns")
+                            step['failed'] = True
+                            continue
                 
                 if result.returncode == 0:
                     print(f"  ✓ Success")

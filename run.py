@@ -363,87 +363,79 @@ def install_dependencies():
         project_root / "requirements-optional.txt"  # optional cloud SDKs
     ]
     
+    def _install_single_file(req_file):
+        """Install a single requirements file with retries. Returns True on success."""
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    print(f"Retry {attempt + 1}/{max_retries} installing {req_file.name}...")
+                else:
+                    print(f"Installing from {req_file.name}...")
+
+                result = subprocess.run([venv_python, "-m", "pip", "install", "-r", str(req_file)],
+                                      capture_output=True, text=True, timeout=600)
+                if result.returncode == 0:
+                    print(f"OK {req_file.name} installed")
+                    return True
+                else:
+                    error_msg = result.stderr.strip()
+                    if attempt == max_retries - 1:
+                        print(f"{req_file.name} installation failed after {max_retries} attempts: {error_msg}")
+                        if "Permission denied" in error_msg:
+                            print("Permission denied. Check antivirus software or file permissions.")
+                        elif "Could not find a version" in error_msg:
+                            print("Package version conflict. Check requirements file compatibility.")
+                        elif "Network is unreachable" in error_msg or "Connection failed" in error_msg:
+                            print("Network error. Check internet connection.")
+                        else:
+                            print("See error message above for details.")
+                    else:
+                        print(f"{req_file.name} attempt {attempt + 1} failed, retrying...")
+            except subprocess.TimeoutExpired:
+                if attempt == max_retries - 1:
+                    print(f"{req_file.name} installation timed out")
+                else:
+                    print(f"{req_file.name} installation timed out, retrying...")
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    print(f"{req_file.name} installation error: {e}")
+                else:
+                    print(f"{req_file.name} installation error: {e}, retrying...")
+        return False
+
     for requirements_file in requirements_files:
-        if requirements_file.exists():
-            for attempt in range(max_retries):
-                try:
-                    if attempt > 0:
-                        print(f"Retry {attempt + 1}/{max_retries} installing {requirements_file.name}...")
-                    else:
-                        print(f"Installing from {requirements_file.name}...")
-                    
-                    result = subprocess.run([venv_python, "-m", "pip", "install", "-r", str(requirements_file)],
-                                          capture_output=True, text=True, timeout=600)
-                    if result.returncode == 0:
-                        print(f"✓ {requirements_file.name} installed")
-                        
-                        # Handle different requirements files appropriately
-                        if requirements_file.name == "requirements-core.txt":
-                            print("✓ Core dependencies installed successfully")
-                            print("Note: Optional ML/AI dependencies can be installed later with:")
-                            print("  pip install -r requirements-optional.txt")
-                            return True  # Success, exit the function
-                        elif requirements_file.name == "requirements.txt":
-                            print("✓ Main dependencies installed successfully")
-                            # Continue to optional dependencies
-                            continue
-                        elif requirements_file.name == "requirements-optional.txt":
-                            print("✓ Optional cloud SDKs installed successfully")
-                            return True  # All done
-                        break
-                    else:
-                        error_msg = result.stderr.strip()
-                        if attempt == max_retries - 1:
-                            print(f"{requirements_file.name} installation failed after {max_retries} attempts: {error_msg}")
-                            
-                            # Provide helpful error messages
-                            if "Permission denied" in error_msg:
-                                print("Permission denied. Check antivirus software or file permissions.")
-                            elif "Could not find a version" in error_msg:
-                                print("Package version conflict. Check requirements file compatibility.")
-                            elif "Network is unreachable" in error_msg or "Connection failed" in error_msg:
-                                print("Network error. Check internet connection.")
-                            else:
-                                print("See error message above for details.")
-                            
-                            # Handle failure based on file type
-                            if requirements_file.name == "requirements-core.txt":
-                                return False  # Critical failure
-                            elif requirements_file.name == "requirements.txt":
-                                print("⚠️ Main requirements failed, trying core requirements...")
-                                # Try core requirements as fallback
-                                core_file = project_root / "requirements-core.txt"
-                                if core_file.exists():
-                                    continue  # Try next file (core)
-                                else:
-                                    return False
-                            elif requirements_file.name == "requirements-optional.txt":
-                                print("⚠️ Optional cloud SDKs failed to install, continuing...")
-                                return True  # Optional failure is OK
-                        else:
-                            print(f"{requirements_file.name} attempt {attempt + 1} failed, retrying...")
-                except subprocess.TimeoutExpired:
-                    if attempt == max_retries - 1:
-                        print(f"{requirements_file.name} installation timed out")
-                        if requirements_file.name == "requirements-core.txt":
-                            return False
-                        else:
-                            print("Continuing without optional dependencies...")
-                            return True  # Continue without optional deps
-                    else:
-                        print(f"{requirements_file.name} installation timed out, retrying...")
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        print(f"{requirements_file.name} installation error: {e}")
-                        if requirements_file.name == "requirements-core.txt":
-                            return False
-                        else:
-                            print("Continuing without optional dependencies...")
-                            return True  # Continue without optional deps
-                    else:
-                        print(f"{requirements_file.name} installation error: {e}, retrying...")
-    
-    # Install project in editable mode if pyproject.toml exists
+        if not requirements_file.exists():
+            continue
+
+        success = _install_single_file(requirements_file)
+
+        if success:
+            if requirements_file.name == "requirements-core.txt":
+                print("OK Core dependencies installed successfully")
+                print("Note: Optional ML/AI dependencies can be installed later with:")
+                print("  pip install -r requirements-optional.txt")
+                return True
+            elif requirements_file.name == "requirements.txt":
+                print("OK Main dependencies installed successfully")
+                # Continue to optional deps (next iteration)
+            elif requirements_file.name == "requirements-optional.txt":
+                print("OK Optional cloud SDKs installed successfully")
+                return True
+        else:
+            if requirements_file.name == "requirements-core.txt":
+                return False  # Critical failure
+            elif requirements_file.name == "requirements.txt":
+                print("WARN Main requirements failed, trying core requirements...")
+                core_file = project_root / "requirements-core.txt"
+                if core_file.exists() and core_file != requirements_file:
+                    if _install_single_file(core_file):
+                        print("OK Core dependencies installed successfully")
+                        return True
+                return False
+            elif requirements_file.name == "requirements-optional.txt":
+                print("WARN Optional cloud SDKs failed to install, continuing...")
+                return True
+        # Install project in editable mode if pyproject.toml exists
     pyproject_file = project_root / "pyproject.toml"
     if pyproject_file.exists():
         try:
@@ -497,7 +489,7 @@ def bootstrap_environment():
 
 def show_help():
     """Show help message"""
-    print("VEXIS-CLI AI Agent Runner")
+    print("VEXIS-CLI-3 AI Agent Runner")
     print("=" * 50)
     print("Usage: python3 run.py \"your instruction here\"")
     print()
@@ -656,14 +648,21 @@ def update_ollama():
                 error_message(f"Failed to download Ollama install script: {download_result.stderr}")
                 return False
             
-            # Write script to temp file
-            with open(script_path, 'w') as f:
-                f.write(download_result.stdout)
+            script_content = download_result.stdout
+            if not script_content.strip().startswith('#!') and not script_content.strip().startswith('#'):
+                error_message("Downloaded script does not appear to be a valid shell script")
+                return False
+            dangerous_patterns = ['rm -rf /', 'mkfs.', 'dd if=/dev/zero of=/dev']
+            for pattern in dangerous_patterns:
+                if pattern in script_content:
+                    error_message(f"Downloaded script contains dangerous pattern: {pattern}")
+                    return False
             
-            # Make script executable
+            with open(script_path, 'w') as f:
+                f.write(script_content)
+            
             os.chmod(script_path, 0o755)
             
-            # Step 2: Execute the downloaded script with bash (without shell=True)
             result = subprocess.run(
                 ['bash', script_path],
                 capture_output=True,
@@ -1956,7 +1955,7 @@ def main():
     
     # Show help
     if "--help" in sys.argv:
-        print("VEXIS-CLI - AI-Powered Command Line Assistant")
+        print("VEXIS-CLI-3 - AI-Powered Command Line Assistant")
         print("=" * 50)
         print("\nUsage: python3 run.py \"your instruction here\"")
         print("\nExamples:")
@@ -2134,7 +2133,7 @@ def main():
     elif not instruction:
         # Normal mode without instruction: prompt for input interactively
         print("\n" + "=" * 50)
-        print("VEXIS-CLI - AI-Powered Command Line Assistant")
+        print("VEXIS-CLI-3 - AI-Powered Command Line Assistant")
         print("=" * 50)
         print("\nInteractive Mode - Context is maintained between commands")
         print("Commands:")
@@ -2152,6 +2151,8 @@ def main():
             if instruction.strip() == "/restart":
                 print("🔄 Restarting with current settings...")
                 restart_with_current_settings(selected_mode, selected_provider, selected_model, debug_mode, max_iterations=None)
+                print("Restart failed. Exiting...")
+                sys.exit(1)
             if instruction.strip() == "/KG":
                 print("⚠️ /KG command can only be used to resume a task after a timeout.")
                 print("   Please run a task first, then use /KG if it times out.")
@@ -2162,6 +2163,8 @@ def main():
                 if instruction.strip() == "/restart":
                     print("🔄 Restarting with current settings...")
                     restart_with_current_settings(selected_mode, selected_provider, selected_model, debug_mode, max_iterations=None)
+                    print("Restart failed. Exiting...")
+                    sys.exit(1)
                 if not instruction.strip():
                     print("No instruction provided. Exiting...")
                     sys.exit(0)
@@ -2175,6 +2178,8 @@ def main():
         if instruction.strip() == "/restart":
             print("🔄 Restarting with current settings...")
             restart_with_current_settings(selected_mode, selected_provider, selected_model, debug_mode, max_iterations=None)
+            print("Restart failed. Exiting...")
+            sys.exit(1)
         print(f"\nAI Agent executing: {instruction}")
     
     max_iterations = 500
@@ -2190,13 +2195,18 @@ def main():
     
     try:
         from ai_agent.user_interface.five_phase_app import FivePhaseAIAgent
+        from ai_agent.core_processing.five_phase_engine import PipelinePhase
         from ai_agent.external_integration.telegram_bot import create_telegram_bot
         
         # Create Telegram bot if in Telegram mode
         telegram_bot = None
         if selected_mode == "telegram":
             config_path = current_dir / "config.yaml"
-            telegram_bot = create_telegram_bot(str(config_path) if config_path.exists() else None)
+            history_dir = current_dir / "conversation_history"
+            telegram_bot = create_telegram_bot(
+                str(config_path) if config_path.exists() else None,
+                history_dir=str(history_dir),
+            )
             
             if not telegram_bot:
                 print("⚠️ Telegram mode selected but bot configuration is invalid")
@@ -2262,6 +2272,14 @@ def main():
                     cancel_event=cancel_event
                 )
                 
+                # Store completed task info into conversation history
+                if context.current_phase == PipelinePhase.COMPLETED and conversation_history is not None:
+                    conversation_history.add_completed_task(
+                        task_prompt=message,
+                        steps=list(context.completed_steps),
+                        summary=context.final_summary or "",
+                    )
+                
                 # Return the final summary as response
                 if context.final_summary:
                     return context.final_summary
@@ -2277,7 +2295,11 @@ def main():
                 restart_with_current_settings(selected_mode, selected_provider, selected_model, debug_mode, max_iterations)
 
             telegram_bot.set_restart_callback(process_telegram_restart)
-            
+
+            # Give the bot a reference to the engine so it can preserve partial
+            # context when a new Telegram message cancels an in-progress task.
+            telegram_bot.engine = agent.engine
+
             # Start the bot (blocking)
             try:
                 telegram_bot.start_bot()
@@ -2292,6 +2314,8 @@ def main():
             
             # Create conversation history for normal mode (use user_id=0 for single user)
             conversation_history = ConversationHistory(user_id=0, max_length=50)
+            history_dir = current_dir / "conversation_history"
+            conversation_history.set_history_dir(str(history_dir))
             
             # Interactive loop. The pipeline runs in a worker thread so stdin
             # remains responsive. If the user types a new prompt while work is
@@ -2415,6 +2439,7 @@ def main():
                             # Create a clean conversation history that removes timeout traces
                             # Remove the last assistant message that contained timeout information
                             clean_conversation_history = ConversationHistory(user_id=0, max_length=50)
+                            clean_conversation_history.set_history_dir(str(history_dir), load=False)
                             if last_conversation_history and hasattr(last_conversation_history, 'messages'):
                                 # Copy all messages except the last one (which contains timeout info)
                                 for i, msg in enumerate(last_conversation_history.messages):
@@ -2447,6 +2472,9 @@ def main():
                         if not latest_instruction:
                             continue
 
+                        # Save partial progress from the cancelled task into
+                        # conversation history so the next task has full context.
+                        agent.engine.get_partial_context(conversation_history)
                         current_cancel_event.set()
                         agent.engine.request_cancel()
                         print("\n🔄 Previous task cancelled. Switching to latest instruction...")
@@ -2463,6 +2491,12 @@ def main():
                             last_output = agent.engine.terminal_history.get_last_command_output()
                             if last_output:
                                 conversation_history.add_message("assistant", last_output)
+                            full_terminal_log = agent.engine.terminal_history.display_terminal_log(max_entries=200)
+                            if full_terminal_log:
+                                if len(full_terminal_log) > 6000:
+                                    full_terminal_log = full_terminal_log[-6000:]
+                                    full_terminal_log = "[Terminal log truncated to latest 6000 chars]\n" + full_terminal_log
+                                conversation_history.add_message("assistant", f"[terminal_log]\n{full_terminal_log}")
 
                         instruction = read_next_instruction("\nEnter your instruction (or 'quit' to exit, '/reset' to clear context, '/restart' to restart, '/KG' to resume after timeout):\n> ")
                         if instruction.lower() in ['quit', 'exit', 'q']:

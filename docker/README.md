@@ -1,6 +1,6 @@
-# AI Agent Docker Containers
+# VEXIS-CLI-3 Docker Containers
 
-This directory contains Docker configurations for running the AI Agent system across different platforms.
+This directory contains Docker configurations for running the VEXIS-CLI-3 system across different platforms.
 
 ## Available Containers
 

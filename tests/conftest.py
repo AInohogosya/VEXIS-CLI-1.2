@@ -4,8 +4,16 @@ Pytest configuration and shared fixtures
 
 import pytest
 import tempfile
+import sys
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
+
+# Ensure both repo root and src directory are importable during test collection.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SRC_DIR = _REPO_ROOT / "src"
+for _path in (str(_REPO_ROOT), str(_SRC_DIR)):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
 
 
 @pytest.fixture
@@ -73,12 +81,14 @@ def reset_singletons():
     """
     # Import and reset singletons
     from src.ai_agent.utils import exceptions, cost_manager, prompt_cache, provider_fallback
+    from src.ai_agent.core_processing.repo_index import IndexManager
     
     # Reset global instances
     exceptions._global_robustness_manager = None
     cost_manager._global_cost_manager = None
     prompt_cache._global_cache = None
     provider_fallback._global_fallback_manager = None
+    IndexManager.reset_index()
     
     yield
     
@@ -87,3 +97,4 @@ def reset_singletons():
     cost_manager._global_cost_manager = None
     prompt_cache._global_cache = None
     provider_fallback._global_fallback_manager = None
+    IndexManager.reset_index()

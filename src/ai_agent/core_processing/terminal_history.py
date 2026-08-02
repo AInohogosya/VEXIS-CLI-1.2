@@ -21,6 +21,7 @@ from contextlib import contextmanager
 
 from ..utils.logger import get_logger
 from ..utils.exceptions import ExecutionError, PlatformError, ValidationError
+from .verification import VerificationExecutor
 
 
 class TerminalEntryType(Enum):
@@ -138,6 +139,9 @@ class TerminalHistory:
             # Platform-specific settings
             self._platform = platform.system().lower()
             self._shell = self._detect_shell()
+
+            # Verification-First Execution layer
+            self._verification_executor = VerificationExecutor(enabled=True)
             
             self.logger.info(
                 f"Terminal history system initialized",
@@ -222,7 +226,35 @@ class TerminalHistory:
             self.terminal_session.entries.append(command_entry)
             
             self.logger.info(f"Executing command", command=command, working_directory=str(self._current_directory))
-            
+
+            # Verification-First: Run pre-flight probes before execution
+            verification_result = self._verification_executor.verify(
+                command, cwd=str(self._current_directory)
+            )
+            if verification_result.blocked:
+                blocked_response = self._verification_executor.get_blocked_response(verification_result)
+                self.logger.warning(
+                    f"Command blocked by verification probe",
+                    command=command,
+                    probe=verification_result.blocking_result.probe_name,
+                    reason=verification_result.blocking_result.message,
+                )
+                duration = time.time() - start_time
+                command_entry.return_code = -1
+                command_entry.duration = duration
+                error_entry = TerminalEntry(
+                    timestamp=start_time + duration,
+                    entry_type=TerminalEntryType.ERROR,
+                    content=blocked_response["stderr"],
+                    command=command,
+                    working_directory=str(self._current_directory),
+                    return_code=-1,
+                    duration=duration,
+                )
+                self.terminal_session.entries.append(error_entry)
+                self._persist_history()
+                return blocked_response
+
             # Handle special commands
             if command.strip().startswith('cd '):
                 result = self._handle_cd_command(command, start_time)
@@ -504,9 +536,10 @@ class TerminalHistory:
             
             # SECURITY: Check for path traversal attempts to sensitive directories
             sensitive_paths = [
-                Path('/etc'), Path('/var'), Path('/usr'), Path('/bin'), 
+                Path('/etc'), Path('/var'), Path('/usr'), Path('/bin'),
                 Path('/sbin'), Path('/lib'), Path('/lib64'), Path('/opt'),
-                Path('/sys'), Path('/proc'), Path('/dev'), Path('/boot')
+                Path('/sys'), Path('/proc'), Path('/dev'), Path('/boot'),
+                Path('/root'),
             ]
             
             for sensitive in sensitive_paths:
@@ -1025,6 +1058,35 @@ class TerminalHistory:
             self.logger.info(f"Executing batch of {len(commands)} commands", 
                            command_count=len(commands),
                            working_directory=str(self._current_directory))
+
+            # Verification-First: Run pre-flight probes on each command
+            for cmd in commands:
+                verification_result = self._verification_executor.verify(
+                    cmd, cwd=str(self._current_directory)
+                )
+                if verification_result.blocked:
+                    blocked_response = self._verification_executor.get_blocked_response(verification_result)
+                    self.logger.warning(
+                        f"Batch command blocked by verification probe",
+                        command=cmd,
+                        probe=verification_result.blocking_result.probe_name,
+                        reason=verification_result.blocking_result.message,
+                    )
+                    duration = time.time() - start_time
+                    command_entry.return_code = -1
+                    command_entry.duration = duration
+                    error_entry = TerminalEntry(
+                        timestamp=start_time + duration,
+                        entry_type=TerminalEntryType.ERROR,
+                        content=blocked_response["stderr"],
+                        command=cmd,
+                        working_directory=str(self._current_directory),
+                        return_code=-1,
+                        duration=duration,
+                    )
+                    self.terminal_session.entries.append(error_entry)
+                    self._persist_history()
+                    return blocked_response
             
             # Execute all commands in a single shell session. The lock keeps
             # overlapping user requests from running two foreground command
@@ -1198,10 +1260,10 @@ class TerminalHistory:
         
         import tempfile
         
-        # Write batch script to temp file to avoid shell=True
+        # Write batch script to system temp file to avoid shell=True and user-controlled dirs
         script_suffix = '.bat' if self._platform == "windows" else '.sh'
-        with tempfile.NamedTemporaryFile(mode='w', suffix=script_suffix, delete=False, 
-                                          dir=str(self._current_directory)) as tmp_script:
+        with tempfile.NamedTemporaryFile(mode='w', suffix=script_suffix, delete=False,
+                                          dir=tempfile.gettempdir()) as tmp_script:
             if self._platform == "windows":
                 tmp_script.write(f"@echo off\n{batch_script}\n")
             else:
@@ -1306,7 +1368,8 @@ class TerminalHistory:
             )
         finally:
             with self._current_process_lock:
-                if self._current_process is locals().get("process"):
+                current = self._current_process
+                if current is locals().get("process"):
                     self._current_process = None
             # Clean up temp script file
             try:
@@ -1316,8 +1379,24 @@ class TerminalHistory:
                 pass
 
     def _is_background_command(self, command: str) -> bool:
-        """Return True when a command explicitly requests background execution."""
-        return command.rstrip().endswith('&') and not command.rstrip().endswith('&&')
+        """Return True when a command explicitly requests background execution.
+        
+        Handles edge cases:
+        - 'cmd &' -> background
+        - 'cmd &&' -> not background (logical AND)
+        - 'cmd ||' -> not background (logical OR)
+        - 'cmd &;' -> background with semicolon
+        - 'cmd & ' -> background (trailing space)
+        """
+        stripped = command.rstrip()
+        if not stripped:
+            return False
+        last_char = stripped[-1]
+        if last_char == '&':
+            if stripped.endswith('&&') or stripped.endswith('||'):
+                return False
+            return True
+        return False
 
     def _detach_background_command(self, command: str) -> str:
         """Detach an explicit background command so it survives batch shell exit.
@@ -1329,12 +1408,18 @@ class TerminalHistory:
         output to a per-session log, starts the process with nohup, and prints
         the PID for later inspection.
         """
-        inner_command = command.rstrip()[:-1].strip()
+        stripped = command.rstrip()
+        if not stripped:
+            return command
+        if stripped.endswith('&;') or stripped.endswith('&\n'):
+            inner_command = stripped[:-2].strip()
+        else:
+            inner_command = stripped[:-1].strip()
         if not inner_command:
             return command
 
         if self._platform == "windows":
-            return f'start /b cmd /c "{inner_command}"'
+            return f'start /b cmd /c {shlex.quote(inner_command)}'
 
         background_dir = self.history_dir / "background_jobs"
         background_dir.mkdir(parents=True, exist_ok=True)

@@ -1,1456 +1,1296 @@
 # Deployment Guide
 
-## Overview
+## Table of Contents
 
-This guide covers deployment strategies, configurations, and best practices for VEXIS-CLI in various environments from development to production.
+1. [Introduction](#introduction)
+2. [Deployment Prerequisites](#deployment-prerequisites)
+3. [Deployment Strategies](#deployment-strategies)
+4. [Local Development Deployment](#local-development-deployment)
+5. [Production Deployment](#production-deployment)
+6. [Docker Deployment](#docker-deployment)
+7. [Kubernetes Deployment](#kubernetes-deployment)
+8. [Cloud Deployment](#cloud-deployment)
+9. [Scaling and High Availability](#scaling-and-high-availability)
+10. [Backup and Recovery](#backup-and-recovery)
+11. [Monitoring and Maintenance](#monitoring-and-maintenance)
+12. [Security Considerations](#security-considerations)
+13. [Troubleshooting](#troubleshooting)
 
-## Deployment Architectures
+## Introduction
 
-### Single Machine Deployment
+Deploying the 6-Phase Architecture system requires careful planning and execution to ensure optimal performance, security, and reliability. This guide provides comprehensive instructions for deploying the system in various environments, from local development to enterprise production.
 
-```
-┌─────────────────────────────────────────┐
-│           Single Machine               │
-├─────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────────┐   │
-│  │  VEXIS-CLI  │  │   Ollama       │   │
-│  │   Engine    │  │   Server       │   │
-│  └─────────────┘  └─────────────────┘   │
-│  ┌─────────────┐  ┌─────────────────┐   │
-│  │   Config    │  │    Models      │   │
-│  │   Files     │  │   Storage      │   │
-│  └─────────────┘  └─────────────────┘   │
-└─────────────────────────────────────────┘
-```
+### Deployment Objectives
 
-**Use Cases:**
-- Development environments
-- Personal workstations
-- Small team deployments
-- Testing and staging
+- **Zero Downtime**: Minimize service interruptions during deployment
+- **High Availability**: Ensure system availability and reliability
+- **Security**: Implement robust security measures
+- **Scalability**: Support horizontal and vertical scaling
+- **Observability**: Comprehensive monitoring and logging
+- **Disaster Recovery**: Implement backup and recovery procedures
 
-### Distributed Deployment
+## Deployment Prerequisites
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Client 1      │    │   Client 2      │    │   Client N      │
-└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
-          │                      │                      │
-          └──────────────────────┼──────────────────────┘
-                                 │
-                    ┌─────────────┴─────────────┐
-                    │     Load Balancer         │
-                    └─────────────┬─────────────┘
-                                 │
-                    ┌─────────────┴─────────────┐
-                    │   VEXIS-CLI Cluster      │
-                    │  ┌─────────────────────┐ │
-                    │  │   Application Node   │ │
-                    │  └─────────────────────┘ │
-                    │  ┌─────────────────────┐ │
-                    │  │   Ollama Cluster    │ │
-                    │  └─────────────────────┘ │
-                    └───────────────────────────┘
-```
+### System Requirements
 
-**Use Cases:**
-- Production environments
-- High-availability requirements
-- Load balancing needs
-- Multi-user scenarios
+#### Minimum Requirements
 
-### Containerized Deployment
+- **CPU**: 2 cores
+- **Memory**: 4 GB RAM
+- **Storage**: 20 GB free space
+- **Network**: 1 Gbps
+- **Operating System**: Linux, macOS, or Windows
 
-```
-┌─────────────────────────────────────────┐
-│           Docker Host                   │
-├─────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────────┐   │
-│  │   Container │  │   Container     │   │
-│  │  VEXIS-CLI │  │    Ollama      │   │
-│  └─────────────┘  └─────────────────┘   │
-│  ┌─────────────┐  ┌─────────────────┐   │
-│  │   Container │  │   Container     │   │
-│  │    Redis    │  │   Monitoring    │   │
-│  └─────────────┘  └─────────────────┘   │
-└─────────────────────────────────────────┘
-```
-
-**Use Cases:**
-- Cloud deployments
-- Microservices architecture
-- Scalable infrastructure
-- CI/CD pipelines
-
-## Environment Setup
-
-### Development Environment
-
-#### Prerequisites
-
-```bash
-# System requirements
-Python 3.9+
-Git
-Ollama (optional, for local models)
-
-# Check Python version
-python3 --version
-
-# Check Git
-git --version
-
-# Check Ollama (if using local models)
-ollama --version
-```
-
-#### Installation Steps
-
-```bash
-# 1. Clone repository
-git clone https://github.com/AInohogosya/VEXIS-CLI.git
-cd VEXIS-CLI
-
-# 2. Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # Linux/macOS
-# or
-venv\Scripts\activate     # Windows
-
-# 3. Install dependencies
-pip install -r requirements.txt
-pip install -e .  # Development mode
-
-# 4. Install development dependencies
-pip install -r requirements-dev.txt
-
-# 5. Set up configuration
-cp config.yaml.example config.yaml
-# Edit config.yaml with your settings
-
-# 6. Verify installation
-python3 run.py --check-config
-python3 run.py "test instruction"
-```
-
-#### Development Configuration
-
-```yaml
-# config.dev.yaml
-api:
-  preferred_provider: "ollama"
-  local_endpoint: "http://localhost:11434"
-  local_model: "gemini-3-flash-preview:latest"
-  timeout: 60
-  max_retries: 2
-
-execution:
-  safety_mode: true
-  dry_run: false
-  verify_commands: true
-
-logging:
-  level: "DEBUG"
-  console: true
-  file: "logs/dev.log"
-
-development:
-  debug_mode: true
-  verbose_errors: true
-  mock_responses: false
-```
-
-### Staging Environment
-
-#### System Requirements
-
-- **CPU**: 4+ cores
-- **RAM**: 16GB+
-- **Storage**: 50GB+
-- **Network**: Stable internet connection
-
-#### Configuration
-
-```yaml
-# config.staging.yaml
-api:
-  preferred_provider: "google"  # Test cloud provider
-  google_api_key: "${GOOGLE_API_KEY}"
-  gemini_model: "gemini-2.5-flash"  # Latest stable model
-  timeout: 120
-  max_retries: 3
-
-execution:
-  safety_mode: true
-  dry_run: false
-  verify_commands: true
-
-logging:
-  level: "INFO"
-  console: false
-  file: "/var/log/vexis/staging.log"
-  rotation: true
-
-security:
-  safety_mode: true
-  blacklist_mode: true
-
-monitoring:
-  enabled: true
-  metrics_port: 9090
-```
-
-#### Deployment Script
-
-```bash
-#!/bin/bash
-# deploy_staging.sh
-
-set -e
-
-echo "Deploying VEXIS-CLI to staging..."
-
-# 1. Update code
-git pull origin main
-
-# 2. Install dependencies
-pip install -r requirements.txt
-pip install -e .
-
-# 3. Set up configuration
-export VEXIS_CONFIG="config.staging.yaml"
-export GOOGLE_API_KEY="${STAGING_API_KEY}"
-
-# 4. Run health checks
-python3 run.py --check-config
-python3 run.py --health-check
-
-# 5. Start services
-if command -v systemctl &> /dev/null; then
-    sudo systemctl restart vexis-staging
-else
-    # Fallback to manual start
-    nohup python3 run.py --daemon --config config.staging.yaml > /var/log/vexis/staging.out 2>&1 &
-fi
-
-echo "Staging deployment complete!"
-```
-
-### Production Environment
-
-#### System Requirements
+#### Recommended Requirements
 
 - **CPU**: 8+ cores
-- **RAM**: 32GB+
-- **Storage**: 100GB+ SSD
-- **Network**: High-speed, redundant
-- **OS**: Ubuntu 20.04+ LTS / CentOS 8+ / RHEL 8+
+- **Memory**: 16 GB RAM (32 GB recommended)
+- **Storage**: 100 GB SSD (200 GB recommended)
+- **Network**: 10 Gbps with low latency
+- **Operating System**: Linux (Ubuntu 20.04+ or equivalent)
 
-#### Production Configuration
+### Software Prerequisites
 
-```yaml
-# config.prod.yaml
-api:
-  preferred_provider: "google"
-  google_api_key: "${GOOGLE_API_KEY}"
-  gemini_model: "gemini-2.5-flash"  # Latest stable model
-  timeout: 180
-  max_retries: 5
-  rate_limit: 20
+- **Python**: 3.8 or higher
+- **Docker**: 20.10 or higher (optional)
+- **Kubernetes**: 1.24 or higher (optional)
+- **PostgreSQL**: 14 or higher (optional)
+- **Redis**: 6.2 or higher (optional)
+- **Nginx**: 1.18 or higher (optional)
 
-execution:
-  safety_mode: true
-  dry_run: false
-  verify_commands: true
-  parallel_execution: true
-  max_concurrent: 5
+### Network Requirements
 
-logging:
-  level: "INFO"
-  console: false
-  file: "/var/log/vexis/production.log"
-  rotation: true
-  max_size: "100MB"
-  backup_count: 10
+#### Ports
 
-security:
-  safety_mode: true
-  blacklist_mode: true
-  restricted_paths: ["/etc", "/usr/bin", "/root"]
+| Port | Protocol | Service | Description |
+|------|----------|---------|-------------|
+| 80 | TCP | HTTP | Web interface (optional) |
+| 443 | TCP | HTTPS | Secure web interface (optional) |
+| 5432 | TCP | PostgreSQL | Database connection |
+| 6379 | TCP | Redis | Cache and session storage |
+| 8000 | TCP | API | REST API endpoint |
+| 9090 | TCP | Prometheus | Monitoring endpoint |
+| 3000 | TCP | Grafana | Dashboard (optional) |
 
-monitoring:
-  enabled: true
-  metrics_port: 9090
-  health_check_interval: 30
+#### Firewall Rules
 
-performance:
-  cache_responses: true
-  cache_size: 1000
-  connection_pool_size: 10
-```
+- Allow inbound traffic on required ports
+- Restrict access to management interfaces
+- Implement VPN or bastion host for secure access
+- Use security groups or firewall rules for network segmentation
 
-#### Production Deployment Script
+## Deployment Strategies
+
+### Deployment Options
+
+#### Local Development
+
+- **Use Case**: Development, testing, and demonstration
+- **Environment**: Single machine, local network
+- **Scale**: Single instance
+- **Persistence**: Local storage
+
+#### Production Deployment
+
+- **Use Case**: Production workloads and enterprise deployment
+- **Environment**: Data center or cloud infrastructure
+- **Scale**: Clustered deployment with load balancing
+- **Persistence**: Distributed storage with backup
+
+#### Hybrid Deployment
+
+- **Use Case**: Mixed on-premises and cloud deployment
+- **Environment**: Multi-cloud or hybrid cloud
+- **Scale**: Distributed deployment with federation
+- **Persistence**: Multi-region storage with replication
+
+### Deployment Patterns
+
+#### Rolling Deployment
+
+- **Description**: Gradual replacement of instances with new version
+- **Advantages**: Zero downtime, gradual rollout
+- **Disadvantages**: Longer deployment time, rollback complexity
+
+#### Blue-Green Deployment
+
+- **Description**: Parallel environments with traffic switching
+- **Advantages**: Zero downtime, instant rollback
+- **Disadvantages**: Resource intensive, complex routing
+
+#### Canary Deployment
+
+- **Description**: Gradual traffic shifting to new version
+- **Advantages**: Risk reduction, real-time monitoring
+- **Disadvantages**: Complex routing, monitoring requirements
+
+## Local Development Deployment
+
+### Quick Start
 
 ```bash
-#!/bin/bash
-# deploy_production.sh
+# Clone the repository
+git clone https://github.com/AInohogosya/VEXIS-CLI-3.git
+cd VEXIS-CLI-3
 
-set -e
-set -u
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Configuration
-APP_USER="vexis"
-APP_DIR="/opt/vexis"
-SERVICE_NAME="vexis-production"
-BACKUP_DIR="/opt/vexis/backups"
+# Install dependencies
+pip install -r requirements.txt
 
-echo "=== Production Deployment ==="
+# Initialize configuration
+python3 init_config.py --default
 
-# 1. Pre-deployment checks
-echo "Running pre-deployment checks..."
-
-# Check system resources
-MEMORY_GB=$(free -g | awk 'NR==2{print $2}')
-if [ $MEMORY_GB -lt 32 ]; then
-    echo "⚠️  Warning: System has less than 32GB RAM"
-fi
-
-# Check disk space
-DISK_GB=$(df -BG /opt | awk 'NR==2{print $4}' | sed 's/G//')
-if [ $DISK_GB -lt 100 ]; then
-    echo "❌ Error: Insufficient disk space (need 100GB+, have ${DISK_GB}GB)"
-    exit 1
-fi
-
-# 2. Backup current deployment
-echo "Creating backup..."
-BACKUP_FILE="${BACKUP_DIR}/vexis-$(date +%Y%m%d-%H%M%S).tar.gz"
-tar -czf "$BACKUP_FILE" -C "$APP_DIR" .
-
-# 3. Update application
-echo "Updating application..."
-sudo -u "$APP_USER" git -C "$APP_DIR" pull origin main
-
-# 4. Install dependencies
-echo "Installing dependencies..."
-sudo -u "$APP_USER" pip install -r "$APP_DIR/requirements.txt"
-sudo -u "$APP_USER" pip install -e "$APP_DIR"
-
-# 5. Configuration
-echo "Setting up configuration..."
-sudo -u "$APP_USER" cp "$APP_DIR/config.prod.yaml" "$APP_DIR/config.yaml"
-sudo -u "$APP_USER" chmod 600 "$APP_DIR/config.yaml"
-
-# 6. Health checks
-echo "Running health checks..."
-sudo -u "$APP_USER" python3 "$APP_DIR/run.py" --check-config
-if [ $? -ne 0 ]; then
-    echo "❌ Configuration validation failed"
-    exit 1
-fi
-
-sudo -u "$APP_USER" python3 "$APP_DIR/run.py" --health-check
-if [ $? -ne 0 ]; then
-    echo "❌ Health check failed"
-    exit 1
-fi
-
-# 7. Restart service
-echo "Restarting service..."
-sudo systemctl restart "$SERVICE_NAME"
-sudo systemctl enable "$SERVICE_NAME"
-
-# 8. Post-deployment verification
-echo "Verifying deployment..."
-sleep 10
-
-if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
-    echo "✅ Service is running"
-else
-    echo "❌ Service failed to start"
-    sudo journalctl -u "$SERVICE_NAME" --no-pager -l
-    exit 1
-fi
-
-# Test API endpoint
-curl -f http://localhost:8080/health || {
-    echo "❌ Health endpoint failed"
-    exit 1
-}
-
-echo "✅ Production deployment successful!"
-echo "Backup saved to: $BACKUP_FILE"
+# Start the development server
+python3 run.py --dev
 ```
 
-## Container Deployment
+### Development Configuration
 
-### Docker Configuration
+```yaml
+# config-development.yaml
+development:
+  api:
+    preferred_provider: "localhost"
+    local_endpoint: "http://localhost:11434"
+    timeout: 60
 
-#### Dockerfile
+  engine:
+    max_iterations: 100
+    enable_phase_logging: true
+    auto_recovery: false
 
-```dockerfile
-# Dockerfile
-FROM python:3.11-slim
+  database:
+    host: "localhost"
+    port: 5432
+    name: "vexis_dev"
+    username: "vexis"
+    password: "dev_password"
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV VEXIS_CONFIG=/app/config.yaml
+  redis:
+    host: "localhost"
+    port: 6379
+    password: ""
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+  monitoring:
+    enabled: false
 
-# Create app directory
-WORKDIR /app
-
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY . .
-
-# Install application
-RUN pip install -e .
-
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash vexis
-RUN chown -R vexis:vexis /app
-USER vexis
-
-# Expose port
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 run.py --health-check || exit 1
-
-# Start command
-CMD ["python3", "run.py", "--server", "--port", "8080"]
+  logging:
+    level: "DEBUG"
+    file: "vexis_dev.log"
 ```
 
-#### Docker Compose
+### Local Database Setup
+
+```bash
+# Install PostgreSQL
+sudo apt-get install postgresql  # Ubuntu/Debian
+brew install postgresql          # macOS
+
+# Create database and user
+sudo -u postgres psql -c "CREATE DATABASE vexiscore_dev;"
+sudo -u postgres psql -c "CREATE USER vexis WITH PASSWORD 'dev_password';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE vexiscore_dev TO vexis;"
+
+# Initialize database schema
+python3 manage.py migrate
+```
+
+## Production Deployment
+
+### Production Configuration
+
+```yaml
+# config-production.yaml
+production:
+  api:
+    preferred_provider: "groq"
+    local_endpoint: "http://localhost:11434"
+    timeout: 180
+    max_retries: 3
+    auto_fallback: true
+
+  engine:
+    phase_timeout: 3600
+    task_timeout: 7200
+    max_iterations: 500
+    enable_phase_logging: false
+    auto_recovery: true
+
+  database:
+    host: "db.vexis.example.com"
+    port: 5432
+    name: "vexis_prod"
+    username: "vexis_prod"
+    password: "${DB_PASSWORD}"
+    ssl_mode: "require"
+
+  redis:
+    host: "redis.vexis.example.com"
+    port: 6379
+    password: "${REDIS_PASSWORD}"
+
+  security:
+    encryption_enabled: true
+    api_key_rotation: "30d"
+    audit_logging: true
+    compliance_level: "enterprise"
+
+  monitoring:
+    enabled: true
+    sampling_rate: 1.0
+    alert_thresholds:
+      latency_p95: 10000
+      error_rate: 0.01
+      throughput: 50
+
+  logging:
+    level: "INFO"
+    file: "/var/log/vexis/vexis.log"
+    max_file_size: 104857600  # 100MB
+    retention_days: 30
+```
+
+### Production Database Setup
+
+```bash
+# Install and configure PostgreSQL
+sudo apt-get install postgresql postgresql-contrib
+
+# Configure PostgreSQL for production
+sudo -u postgres psql -c "CREATE DATABASE vexiscore_prod;"
+sudo -u postgres psql -c "CREATE USER vexis_prod WITH PASSWORD 'strong_password';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE vexiscore_prod TO vexis_prod;"
+
+# Configure SSL for PostgreSQL
+sudo -u postgres psql -c "ALTER USER vexis_prod SET ssl = on;"
+
+# Initialize production database
+python3 manage.py migrate --config production.yaml
+```
+
+### Systemd Service Configuration
+
+```ini
+# /etc/systemd/system/vexis.service
+[Unit]
+Description=VEXIS-CLI 6-Phase Architecture System
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=vexis
+Group=vexis
+WorkingDirectory=/opt/vexis
+Environment="PATH=/opt/vexis/venv/bin"
+Environment="CONFIG_FILE=/opt/vexis/config/production.yaml"
+ExecStart=/opt/vexis/venv/bin/python3 /opt/vexis/run.py --config /opt/vexis/config/production.yaml
+Restart=on-failure
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=vexis
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Service Management
+
+```bash
+# Enable and start the service
+sudo systemctl enable vexiscore
+sudo systemctl start vexiscore
+
+# Check service status
+sudo systemctl status vexiscore
+
+# View logs
+sudo journalctl -u vexiscore -f
+
+# Restart the service
+sudo systemctl restart vexiscore
+
+# Stop the service
+sudo systemctl stop vexiscore
+```
+
+## Docker Deployment
+
+### Docker Compose Configuration
 
 ```yaml
 # docker-compose.yml
 version: '3.8'
 
 services:
-  vexis:
-    build: .
-    ports:
-      - "8080:8080"
+  # VEXIS Core Service
+  vexiscore:
+    image: vexiscore:latest
+    container_name: vexiscore
+    restart: unless-stopped
     environment:
-      - VEXIS_CONFIG=/app/config.yaml
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - CONFIG_FILE=/config/production.yaml
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
+      - ./config:/config
+      - ./data:/app/data
       - ./logs:/app/logs
-      - ollama_models:/home/vexis/.ollama
     depends_on:
-      - ollama
+      - postgres
       - redis
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python3", "run.py", "--health-check"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    networks:
+      - vexiscore-network
 
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14
+    container_name: vexiscore-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vexiscore_prod
+      POSTGRES_USER: vexiscore_prod
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - ollama_models:/root/.ollama
-    restart: unless-stopped
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vexiscore-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD-SHELL", "pg_isready -U vexiscore_prod"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
 
+  # Redis Cache
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    container_name: vexiscore-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    networks:
+      - vexiscore-network
+    command: redis-server --requirepass ${REDIS_PASSWORD}
 
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - vexis
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:8.5.7
+    container_name: vexiscore-grafana
     restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    depends_on:
+      - vexiscore
+    networks:
+      - vexiscore-network
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: vexiscore-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    networks:
+      - vexiscore-network
+
+networks:
+  vexiscore-network:
+    driver: bridge
 
 volumes:
-  ollama_models:
+  postgres_data:
   redis_data:
+  grafana_data:
+  prometheus_data:
 ```
 
-#### Multi-Stage Dockerfile
+### Docker Deployment Commands
 
-```dockerfile
-# Dockerfile.prod
-FROM python:3.11-slim as builder
+```bash
+# Build and start services
+docker-compose up -d
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# View running services
+docker-compose ps
 
-WORKDIR /app
+# View logs
+docker-compose logs -f
 
-# Copy and install requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Stop services
+docker-compose down
 
-# Production stage
-FROM python:3.11-slim
+# Stop and remove volumes
+docker-compose down -v
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Rebuild after changes
+docker-compose build
+docker-compose up -d
 
-WORKDIR /app
-
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-
-# Copy application code
-COPY . .
-
-# Install application
-RUN pip install -e .
-
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash vexis
-RUN chown -R vexis:vexis /app
-USER vexis
-
-EXPOSE 8080
-
-CMD ["python3", "run.py", "--server", "--port", "8080"]
+# Execute database migrations
+docker-compose run --rm vexiscore python3 manage.py migrate
 ```
 
-### Kubernetes Deployment
+## Kubernetes Deployment
 
-#### Deployment Manifest
+### Kubernetes manifests
 
 ```yaml
-# k8s/deployment.yaml
+# deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vexis-deployment
-  labels:
-    app: vexis
+  name: vexiscore
+  namespace: vexiscore
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: vexis
+      app: vexiscore
   template:
     metadata:
       labels:
-        app: vexis
+        app: vexiscore
     spec:
       containers:
-      - name: vexis
-        image: vexis-cli:latest
+      - name: vexiscore
+        image: vexiscore:latest
         ports:
-        - containerPort: 8080
+        - containerPort: 8000
         env:
-        - name: VEXIS_CONFIG
-          value: "/app/config.yaml"
-        - name: GOOGLE_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: vexis-secrets
-              key: google-api-key
+        - name: CONFIG_FILE
+          value: /config/production.yaml
         volumeMounts:
-        - name: config
-          mountPath: /app/config.yaml
-          subPath: config.yaml
-        - name: logs
-          mountPath: /app/logs
+        - name: config-volume
+          mountPath: /config
         resources:
           requests:
-            memory: "1Gi"
-            cpu: "500m"
-          limits:
             memory: "2Gi"
             cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
         livenessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /ready
-            port: 8080
+            port: 8000
           initialDelaySeconds: 5
           periodSeconds: 5
-      volumes:
-      - name: config
-        configMap:
-          name: vexis-config
-      - name: logs
-        emptyDir: {}
-```
-
-#### Service Manifest
-
-```yaml
-# k8s/service.yaml
+---
 apiVersion: v1
 kind: Service
 metadata:
-  name: vexis-service
+  name: vexiscore-service
+  namespace: vexiscore
 spec:
   selector:
-    app: vexis
+    app: vexiscore
   ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 8080
+  - port: 80
+    targetPort: 8000
   type: LoadBalancer
 ```
 
-#### ConfigMap
-
 ```yaml
-# k8s/configmap.yaml
+# config-map.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: vexis-config
+  name: vexiscore-config
+  namespace: vexiscore
 data:
-  config.yaml: |
+  production.yaml: |
     api:
-      preferred_provider: "google"
-      google_api_key: "${GOOGLE_API_KEY}"
-      gemini_model: "gemini-1.5-pro"
+      preferred_provider: "groq"
       timeout: 180
-      max_retries: 5
-    
-    execution:
-      safety_mode: true
-      dry_run: false
-      verify_commands: true
-    
-    logging:
-      level: "INFO"
-      console: false
-      file: "/app/logs/production.log"
-    
-    monitoring:
-      enabled: true
-      metrics_port: 9090
+    engine:
+      phase_timeout: 3600
+      task_timeout: 7200
+    security:
+      encryption_enabled: true
 ```
 
-#### Secret
-
 ```yaml
-# k8s/secret.yaml
+# persistent-volume.yaml
 apiVersion: v1
-kind: Secret
+kind: PersistentVolume
 metadata:
-  name: vexis-secrets
-type: Opaque
-data:
-  google-api-key: <base64-encoded-api-key>
+  name: vexiscore-pv
+  namespace: vexiscore
+spec:
+  storageClassName: standard
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    path: /exports/vexis
+    server: nfs-server.example.com
+```
+
+### Kubernetes Deployment Commands
+
+```bash
+# Create namespace
+kubectl create namespace vexiscore
+
+# Apply configuration
+kubectl apply -f config-map.yaml
+kubectl apply -f persistent-volume.yaml
+
+# Deploy application
+kubectl apply -f deployment.yaml
+
+# Verify deployment
+kubectl get pods -n vexiscore
+kubectl get svc -n vexiscore
+
+# View logs
+kubectl logs -f deployment/vexis -n vexiscore
+
+# Scale deployment
+kubectl scale deployment vexiscore --replicas=5 -n vexiscore
+
+# Update deployment
+kubectl set image deployment/vexis vexiscore=vexis:2.1.0 -n vexiscore
 ```
 
 ## Cloud Deployment
 
 ### AWS Deployment
 
-#### EC2 Instance Setup
+#### AWS Architecture
 
-```bash
-#!/bin/bash
-# aws_setup.sh
-
-# Update system
-sudo yum update -y
-
-# Install Docker
-sudo yum install -y docker
-sudo systemctl start docker
-sudo systemctl enable docker
-sudo usermod -a -G docker ec2-user
-
-# Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-
-# Create application directory
-sudo mkdir -p /opt/vexis
-sudo chown ec2-user:ec2-user /opt/vexis
-
-# Clone repository
-cd /opt/vexis
-git clone https://github.com/AInohogosya/VEXIS-CLI.git .
-
-# Set up environment
-echo "GOOGLE_API_KEY=${GOOGLE_API_KEY}" > .env
-
-# Start services
-docker-compose up -d
-
-# Setup log rotation
-sudo tee /etc/logrotate.d/vexis << EOF
-/opt/vexis/logs/*.log {
-    daily
-    missingok
-    rotate 30
-    compress
-    delaycompress
-    notifempty
-    create 644 ec2-user ec2-user
-}
-EOF
+```
+VPC (Virtual Private Cloud)
+├── Public Subnet
+│   ├── Load Balancer (ALB)
+│   └── NAT Gateway
+└── Private Subnet
+    ├── ECS Cluster (VEXIS Core)
+    ├── RDS PostgreSQL
+    └── ElastiCache Redis
 ```
 
-#### ECS Task Definition
+#### AWS CloudFormation Template
+
+```yaml
+# aws-deployment.yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: VEXIS 6-Phase Architecture Deployment on AWS
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: vexiscore
+    Description: Environment name
+
+Resources:
+  # VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  # Public Subnet
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+
+  # Private Subnet
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties: {}
+
+  # Attach Internet Gateway to VPC
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # ECS Cluster
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref EnvironmentName
+
+  # ECS Service
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref ECSTaskDefinition
+      DesiredCount: 3
+      LoadBalancer:
+        Type: ApplicationLoadBalancer
+        SecurityGroup: !Ref LoadBalancerSecurityGroup
+        Subnet: !Ref PublicSubnet
+        Listener:
+          Port: 80
+          Protocol: HTTP
+
+  # ECS Task Definition
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: vexiscore
+          Image: !Ref ContainerImage
+          Memory: 2048
+          Cpu: 1024
+          Environment:
+            - Name: CONFIG_FILE
+              Value: /config/production.yaml
+          MountPoints:
+            - SourceVolume: config
+              ContainerPath: /config
+```
+
+#### AWS Deployment Commands
+
+```bash
+# Deploy CloudFormation stack
+aws cloudformation deploy \
+  --template-file aws-deployment.yaml \
+  --stack-name vexiscore \
+  --parameter-overrides EnvironmentName=production \
+  --capabilities CAPABILITY_IAM
+
+# Get stack outputs
+aws cloudformation describe-stacks \
+  --stack-name vexiscore
+
+# Update stack
+aws cloudformation deploy \
+  --template-file aws-deployment.yaml \
+  --stack-name vexiscore \
+  --parameter-overrides EnvironmentName=production \
+  --capabilities CAPABILITY_IAM \
+  --no-fail-on-empty-changeset
+```
+
+### Azure Deployment
+
+#### Azure Architecture
+
+```
+Resource Group
+├── Virtual Network
+│   ├── Subnet (VEXIS Core)
+│   ├── Subnet (Database)
+│   └── Subnet (Cache)
+├── Azure Kubernetes Service (AKS)
+├── Azure Database for PostgreSQL
+└── Azure Cache for Redis
+```
+
+#### Azure Resource Manager Template
 
 ```json
 {
-  "family": "vexis-task",
-  "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
-  "cpu": "1024",
-  "memory": "2048",
-  "executionRoleArn": "arn:aws:iam::account:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::account:role/ecsTaskRole",
-  "containerDefinitions": [
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "type": "String",
+      "defaultValue": "vexis-prod"
+    }
+  },
+  "variables": {
+    "vnetAddressPrefix": "10.0.0.0/16",
+    "subnetCorePrefix": "10.0.1.0/24",
+    "subnetDbPrefix": "10.0.2.0/24",
+    "subnetCachePrefix": "10.0.3.0/24"
+  },
+  "resources": [
     {
-      "name": "vexis",
-      "image": "your-account.dkr.ecr.region.amazonaws.com/vexis:latest",
-      "portMappings": [
-        {
-          "containerPort": 8080,
-          "protocol": "tcp"
-        }
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2021-01-01",
+      "name": "[parameters('environmentName')]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2021-03-15",
+      "name": "[concat(parameters('environmentName'), '-vnet')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/resourceGroups/', parameters('environmentName'))]"
       ],
-      "environment": [
-        {
-          "name": "VEXIS_CONFIG",
-          "value": "/app/config.yaml"
-        }
-      ],
-      "secrets": [
-        {
-          "name": "GOOGLE_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:region:account:secret:vexis/google-api-key"
-        }
-      ],
-      "logConfiguration": {
-        "logDriver": "awslogs",
-        "options": {
-          "awslogs-group": "/ecs/vexis",
-          "awslogs-region": "us-west-2",
-          "awslogs-stream-prefix": "ecs"
-        }
-      },
-      "healthCheck": {
-        "command": ["CMD-SHELL", "python3 run.py --health-check"],
-        "interval": 30,
-        "timeout": 5,
-        "retries": 3,
-        "startPeriod": 60
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('vnetAddressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "core-subnet",
+            "properties": {
+              "addressPrefix": "[variables('subnetCorePrefix')]",
+              "privateLinkServiceNetworkPolicies": "Disabled"
+            }
+          },
+          {
+            "name": "db-subnet",
+            "properties": {
+              "addressPrefix": "[variables('subnetDbPrefix')]"
+            }
+          },
+          {
+            "name": "cache-subnet",
+            "properties": {
+              "addressPrefix": "[variables('subnetCachePrefix')]"
+            }
+          }
+        ]
       }
     }
   ]
 }
 ```
 
-### Google Cloud Deployment
-
-#### Cloud Run Service
-
-```yaml
-# cloudrun/service.yaml
-apiVersion: serving.knative.dev/v1
-kind: Service
-metadata:
-  name: vexis-service
-  annotations:
-    run.googleapis.com/ingress: all
-spec:
-  template:
-    metadata:
-      annotations:
-        run.googleapis.com/cpu-throttling: "false"
-        run.googleapis.com/memory: "2Gi"
-    spec:
-      containerConcurrency: 10
-      timeoutSeconds: 300
-      containers:
-      - image: gcr.io/project-id/vexis:latest
-        ports:
-        - containerPort: 8080
-        env:
-        - name: VEXIS_CONFIG
-          value: "/app/config.yaml"
-        - name: GOOGLE_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: vexis-secrets
-              key: google-api-key
-        resources:
-          limits:
-            cpu: "1000m"
-            memory: "2Gi"
-        startupProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 60
-          periodSeconds: 30
-          timeoutSeconds: 5
-          failureThreshold: 3
-```
-
-#### Deployment Script
+#### Azure Deployment Commands
 
 ```bash
-#!/bin/bash
-# gcp_deploy.sh
+# Deploy Azure resources
+az deployment group create \
+  --resource-group vexiscore-prod \
+  --template-file azure-deployment.json \
+  --parameters environmentName=vexis-prod
 
-PROJECT_ID="your-project-id"
-REGION="us-central1"
-SERVICE_NAME="vexis-service"
+# Get deployment outputs
+az deployment group show \
+  --resource-group vexiscore-prod \
+  --name deployment
 
-# Build and push image
-gcloud builds submit --tag gcr.io/${PROJECT_ID}/vexis:latest .
-
-# Deploy to Cloud Run
-gcloud run deploy ${SERVICE_NAME} \
-  --image gcr.io/${PROJECT_ID}/vexis:latest \
-  --region ${REGION} \
-  --platform managed \
-  --allow-unauthenticated \
-  --memory 2Gi \
-  --cpu 1 \
-  --timeout 300s \
-  --set-env-vars VEXIS_CONFIG=/app/config.yaml \
-  --set-secrets GOOGLE_API_KEY=vexis-secrets:google-api-key
-
-# Get service URL
-SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} \
-  --region ${REGION} \
-  --format 'value(status.url)')
-
-echo "Service deployed at: ${SERVICE_URL}"
+# Update deployment
+az deployment group create \
+  --resource-group vexiscore-prod \
+  --template-file azure-deployment.json \
+  --parameters environmentName=vexis-prod
 ```
 
-## Monitoring and Observability
+## Scaling and High Availability
 
-### Health Checks
-
-#### Health Check Endpoint
-
-```python
-# src/ai_agent/monitoring/health.py
-from fastapi import FastAPI, HTTPException
-from ai_agent.core_processing.two_phase_engine import TwoPhaseEngine
-from ai_agent.utils.config import load_config
-import psutil
-import asyncio
-
-app = FastAPI()
-
-@app.get("/health")
-async def health_check():
-    """Comprehensive health check endpoint."""
-    
-    health_status = {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "checks": {}
-    }
-    
-    # Check configuration
-    try:
-        config = load_config()
-        health_status["checks"]["config"] = {"status": "healthy"}
-    except Exception as e:
-        health_status["checks"]["config"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
-        health_status["status"] = "unhealthy"
-    
-    # Check AI providers
-    try:
-        engine = TwoPhaseEngine(config)
-        
-        # Check Ollama
-        ollama_available = await engine.model_runner.is_provider_available("ollama")
-        health_status["checks"]["ollama"] = {
-            "status": "healthy" if ollama_available else "unhealthy",
-            "available": ollama_available
-        }
-        
-        # Check Gemini
-        gemini_available = engine.model_runner.is_provider_available("google")
-        health_status["checks"]["gemini"] = {
-            "status": "healthy" if gemini_available else "unhealthy",
-            "available": gemini_available
-        }
-        
-        if not (ollama_available or gemini_available):
-            health_status["status"] = "unhealthy"
-            
-    except Exception as e:
-        health_status["checks"]["providers"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
-        health_status["status"] = "unhealthy"
-    
-    # Check system resources
-    try:
-        memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
-        
-        health_status["checks"]["resources"] = {
-            "status": "healthy",
-            "memory_percent": memory.percent,
-            "disk_percent": (disk.total - disk.free) / disk.total * 100
-        }
-        
-        if memory.percent > 90 or (disk.total - disk.free) / disk.total > 90:
-            health_status["checks"]["resources"]["status"] = "warning"
-            
-    except Exception as e:
-        health_status["checks"]["resources"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
-    
-    # Return appropriate status code
-    status_code = 200 if health_status["status"] == "healthy" else 503
-    return health_status, status_code
-
-@app.get("/ready")
-async def readiness_check():
-    """Readiness check for Kubernetes."""
-    
-    # Check if application is ready to serve requests
-    try:
-        config = load_config()
-        engine = TwoPhaseEngine(config)
-        
-        # Test primary provider
-        primary_provider = config["api"]["preferred_provider"]
-        available = await engine.model_runner.is_provider_available(primary_provider)
-        
-        if available:
-            return {"status": "ready"}
-        else:
-            raise HTTPException(status_code=503, detail="Primary provider unavailable")
-            
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
-```
-
-### Metrics Collection
-
-#### Prometheus Metrics
-
-```python
-# src/ai_agent/monitoring/metrics.py
-from prometheus_client import Counter, Histogram, Gauge, generate_latest
-import time
-import psutil
-
-# Define metrics
-REQUEST_COUNT = Counter('vexis_requests_total', 'Total requests', ['method', 'endpoint', 'status'])
-REQUEST_DURATION = Histogram('vexis_request_duration_seconds', 'Request duration')
-ACTIVE_CONNECTIONS = Gauge('vexis_active_connections', 'Active connections')
-MEMORY_USAGE = Gauge('vexis_memory_usage_bytes', 'Memory usage')
-CPU_USAGE = Gauge('vexis_cpu_usage_percent', 'CPU usage')
-
-class MetricsMiddleware:
-    """Middleware to collect request metrics."""
-    
-    def __init__(self, app):
-        self.app = app
-    
-    async def __call__(self, scope, receive, send):
-        if scope["type"] == "http":
-            start_time = time.time()
-            
-            # Increment active connections
-            ACTIVE_CONNECTIONS.inc()
-            
-            try:
-                await self.app(scope, receive, send)
-                status = "200"  # This would be set by the actual response
-            except Exception as e:
-                status = "500"
-                raise
-            finally:
-                # Record metrics
-                duration = time.time() - start_time
-                REQUEST_DURATION.observe(duration)
-                REQUEST_COUNT.labels(
-                    method=scope["method"],
-                    endpoint=scope["path"],
-                    status=status
-                ).inc()
-                
-                # Decrement active connections
-                ACTIVE_CONNECTIONS.dec()
-        else:
-            await self.app(scope, receive, send)
-
-def update_system_metrics():
-    """Update system resource metrics."""
-    
-    # Memory usage
-    memory = psutil.virtual_memory()
-    MEMORY_USAGE.set(memory.used)
-    
-    # CPU usage
-    cpu_percent = psutil.cpu_percent()
-    CPU_USAGE.set(cpu_percent)
-
-@app.get("/metrics")
-async def metrics():
-    """Prometheus metrics endpoint."""
-    update_system_metrics()
-    return Response(generate_latest(), media_type="text/plain")
-```
-
-### Logging Configuration
-
-#### Structured Logging
-
-```python
-# src/ai_agent/monitoring/logging.py
-import json
-import logging
-from datetime import datetime
-from typing import Dict, Any
-
-class StructuredLogger:
-    """Structured logger for production monitoring."""
-    
-    def __init__(self, name: str):
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging.INFO)
-        
-        # Create formatter
-        formatter = StructuredFormatter()
-        
-        # Create handler
-        handler = logging.StreamHandler()
-        handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
-    
-    def info(self, message: str, **kwargs):
-        """Log info message with structured data."""
-        self.logger.info(message, extra=kwargs)
-    
-    def error(self, message: str, **kwargs):
-        """Log error message with structured data."""
-        self.logger.error(message, extra=kwargs)
-    
-    def warning(self, message: str, **kwargs):
-        """Log warning message with structured data."""
-        self.logger.warning(message, extra=kwargs)
-
-class StructuredFormatter(logging.Formatter):
-    """Formatter for structured JSON logging."""
-    
-    def format(self, record):
-        log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-            "module": record.module,
-            "function": record.funcName,
-            "line": record.lineno
-        }
-        
-        # Add extra fields
-        if hasattr(record, '__dict__'):
-            for key, value in record.__dict__.items():
-                if key not in ['name', 'msg', 'args', 'levelname', 'levelno', 
-                              'pathname', 'filename', 'module', 'lineno', 
-                              'funcName', 'created', 'msecs', 'relativeCreated', 
-                              'thread', 'threadName', 'processName', 'process', 
-                              'getMessage', 'exc_info', 'exc_text', 'stack_info']:
-                    log_entry[key] = value
-        
-        return json.dumps(log_entry)
-
-# Usage example
-logger = StructuredLogger("vexis.production")
-
-logger.info(
-    "Instruction processed",
-    instruction="list files",
-    provider="ollama",
-    model="gemini-3-flash-preview",
-    duration=1.23,
-    tokens_used=150
-)
-```
-
-## Security Considerations
-
-### Security Configuration
+### Horizontal Scaling
 
 ```yaml
-# security.yaml
-security:
-  # Command restrictions
-  blacklist_mode: true
-  blacklist_commands: [
-    "rm -rf /",
-    "sudo rm",
-    "dd if=/dev/zero",
-    "mkfs",
-    "fdisk",
-    "format"
-  ]
-  
-  # File system restrictions
-  restricted_paths: [
-    "/etc",
-    "/usr/bin",
-    "/sbin",
-    "/boot",
-    "/root",
-    "/System"
-  ]
-  
-  # Network restrictions
-  allowed_domains: [
-    "ollama.ai",
-    "googleapis.com",
-    "generativelanguage.googleapis.com"
-  ]
-  
-  # API security
-  api_key_rotation: true
-  api_key_expiry: 86400  # 24 hours
-  
-  # Authentication
-  require_auth: true
-  auth_method: "api_key"
-  rate_limiting:
-    requests_per_minute: 60
-    burst_size: 10
+# Horizontal Pod Autoscaler (Kubernetes)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: vexiscore-hpa
+  namespace: vexiscore
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: vexiscore
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
 ```
 
-### Container Security
-
-#### Docker Security
-
-```dockerfile
-# Dockerfile.secure
-FROM python:3.11-slim as builder
-
-# Build as root, then run as non-root
-RUN addgroup --system vexis && adduser --system --group vexis
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-WORKDIR /app
-
-# Copy and install requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Production stage
-FROM python:3.11-slim
-
-# Install only runtime dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# Create non-root user
-RUN addgroup --system vexis && adduser --system --group vexis
-
-WORKDIR /app
-
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-
-# Copy application code
-COPY --chown=vexis:vexis . .
-
-# Install application
-RUN pip install -e .
-
-# Set permissions
-RUN chown -R vexis:vexis /app
-RUN chmod -R 755 /app
-RUN chmod 600 /app/config.yaml
-
-# Switch to non-root user
-USER vexis
-
-# Security scanning
-RUN python3 -m pip audit
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 run.py --health-check || exit 1
-
-EXPOSE 8080
-
-CMD ["python3", "run.py", "--server", "--port", "8080"]
-```
-
-### Network Security
-
-#### Nginx Configuration
+### Load Balancing
 
 ```nginx
-# nginx.conf
-events {
-    worker_connections 1024;
+# Nginx load balancer configuration
+upstream vexiscore_backend {
+  least_conn;
+  server vexiscore-1:8000 weight=1 max_fails=3 fail_timeout=30s;
+  server vexiscore-2:8000 weight=1 max_fails=3 fail_timeout=30s;
+  server vexiscore-3:8000 weight=1 max_fails=3 fail_timeout=30s;
 }
 
-http {
-    # Security headers
-    add_header X-Frame-Options DENY;
-    add_header X-Content-Type-Options nosniff;
-    add_header X-XSS-Protection "1; mode=block";
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains";
-    
-    # Rate limiting
-    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
-    
-    upstream vexis_backend {
-        server vexis:8080;
-    }
-    
-    server {
-        listen 80;
-        server_name your-domain.com;
-        
-        # Redirect to HTTPS
-        return 301 https://$server_name$request_uri;
-    }
-    
-    server {
-        listen 443 ssl http2;
-        server_name your-domain.com;
-        
-        # SSL configuration
-        ssl_certificate /etc/nginx/ssl/cert.pem;
-        ssl_certificate_key /etc/nginx/ssl/key.pem;
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
-        ssl_prefer_server_ciphers off;
-        
-        # Apply rate limiting
-        limit_req zone=api burst=20 nodelay;
-        
-        location / {
-            proxy_pass http://vexis_backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            
-            # Timeouts
-            proxy_connect_timeout 60s;
-            proxy_send_timeout 60s;
-            proxy_read_timeout 60s;
-        }
-        
-        # Health check endpoint (no rate limiting)
-        location /health {
-            limit_req zone=api burst=5 nodelay;
-            proxy_pass http://vexis_backend;
-        }
-    }
+server {
+  listen 80;
+  server_name api.vexis.example.com;
+
+  location / {
+    proxy_pass http://vexis_backend;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
 }
+```
+
+### Health Checks and Self-Healing
+
+```yaml
+# Kubernetes health checks
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8000
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 2
+
+startupProbe:
+  httpGet:
+    path: /startup
+    port: 8000
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
 ```
 
 ## Backup and Recovery
 
-### Backup Strategy
-
-#### Automated Backup Script
+### Database Backup
 
 ```bash
+# PostgreSQL database backup
+pg_dump -h localhost -p 5432 -U vexis_prod -d vexiscore_prod \
+  --format=c --file=vexis_backup_$(date +%Y%m%d).dump
+
+# Compressed backup
+pg_dump -h localhost -p 5432 -U vexis_prod -d vexiscore_prod \
+  --format=c --file=vexis_backup.dump | gzip > vexiscore_backup_$(date +%Y%m%d).dump.gz
+
+# Automated backup script
 #!/bin/bash
-# backup.sh
+BACKUP_DIR="/backups/vexis"
+DATE=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="$BACKUP_DIR/vexis_backup_$DATE.dump"
 
-set -e
+pg_dump -h localhost -p 5432 -U vexis_prod -d vexiscore_prod \
+  --format=c --file=$BACKUP_FILE
 
-# Configuration
-BACKUP_DIR="/opt/vexis/backups"
-APP_DIR="/opt/vexis"
-RETENTION_DAYS=30
-S3_BUCKET="vexis-backups"
+# Upload to cloud storage
+aws s3 cp $BACKUP_FILE s3://vexis-backups/$BACKUP_FILE
 
-# Create backup directory
-mkdir -p "$BACKUP_DIR"
-
-# Generate backup filename
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-BACKUP_FILE="vexis-backup-${TIMESTAMP}.tar.gz"
-
-# Create backup
-echo "Creating backup: $BACKUP_FILE"
-
-tar -czf "$BACKUP_DIR/$BACKUP_FILE" \
-    --exclude="$APP_DIR/.git" \
-    --exclude="$APP_DIR/__pycache__" \
-    --exclude="$APP_DIR/.pytest_cache" \
-    --exclude="$APP_DIR/node_modules" \
-    -C "$APP_DIR" .
-
-# Upload to S3 (if configured)
-if command -v aws &> /dev/null && [ ! -z "$S3_BUCKET" ]; then
-    echo "Uploading to S3..."
-    aws s3 cp "$BACKUP_DIR/$BACKUP_FILE" "s3://$S3_BUCKET/backups/"
-fi
-
-# Clean old backups
-echo "Cleaning old backups..."
-find "$BACKUP_DIR" -name "vexis-backup-*.tar.gz" -mtime +$RETENTION_DAYS -delete
-
-# Clean S3 backups
-if command -v aws &> /dev/null && [ ! -z "$S3_BUCKET" ]; then
-    aws s3 ls "s3://$S3_BUCKET/backups/" | \
-    while read -r line; do
-        createDate=$(echo $line | awk '{print $1" "$2}')
-        createDate=$(date -d"$createDate" +%s)
-        olderThan=$(date -d"$RETENTION_DAYS days ago" +%s)
-        
-        if [[ $createDate -lt $olderThan ]]; then
-            fileName=$(echo $line | awk '{print $4}')
-            aws s3 rm "s3://$S3_BUCKET/backups/$fileName"
-        fi
-    done
-fi
-
-echo "Backup completed: $BACKUP_FILE"
+# Clean up old backups (older than 30 days)
+find $BACKUP_DIR -name "*.dump" -mtime +30 -delete
 ```
 
-#### Recovery Script
+### Redis Backup
 
 ```bash
+# Redis RDB backup
+redis-cli -h localhost -p 6379 -a $REDIS_PASSWORD \
+  --rdb /backups/redis/redis_backup_$DATE.rdb
+
+# Automated Redis backup script
 #!/bin/bash
-# recovery.sh
+BACKUP_DIR="/backups/redis"
+DATE=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="$BACKUP_DIR/redis_backup_$DATE.rdb"
 
-set -e
+redis-cli -h localhost -p 6379 -a $REDIS_PASSWORD \
+  --rdb $BACKUP_FILE
 
-# Configuration
-BACKUP_DIR="/opt/vexis/backups"
-APP_DIR="/opt/vexis"
-SERVICE_NAME="vexis-production"
+# Upload to cloud storage
+aws s3 cp $BACKUP_FILE s3://vexis-backups/redis/$BACKUP_FILE
 
-# Function to list available backups
-list_backups() {
-    echo "Available backups:"
-    ls -la "$BACKUP_DIR"/vexis-backup-*.tar.gz | awk '{print $9}' | while read backup; do
-        basename "$backup"
-    done
-}
-
-# Function to restore from backup
-restore_backup() {
-    local backup_file=$1
-    
-    if [ ! -f "$BACKUP_DIR/$backup_file" ]; then
-        echo "Backup file not found: $backup_file"
-        exit 1
-    fi
-    
-    echo "Stopping service..."
-    sudo systemctl stop "$SERVICE_NAME"
-    
-    echo "Creating current backup before restore..."
-    ./backup.sh
-    
-    echo "Restoring from backup: $backup_file"
-    
-    # Remove existing application (excluding backups)
-    sudo find "$APP_DIR" -mindepth 1 -not -path "$BACKUP_DIR" -delete
-    
-    # Restore from backup
-    sudo tar -xzf "$BACKUP_DIR/$backup_file" -C "$APP_DIR"
-    
-    # Fix permissions
-    sudo chown -R vexis:vexis "$APP_DIR"
-    
-    # Reinstall dependencies
-    sudo -u vexis pip install -r "$APP_DIR/requirements.txt"
-    sudo -u vexis pip install -e "$APP_DIR"
-    
-    echo "Starting service..."
-    sudo systemctl start "$SERVICE_NAME"
-    
-    # Verify service
-    sleep 10
-    if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
-        echo "✅ Service restored successfully"
-    else
-        echo "❌ Service failed to start"
-        sudo journalctl -u "$SERVICE_NAME" --no-pager -l
-        exit 1
-    fi
-}
-
-# Main script
-if [ $# -eq 0 ]; then
-    list_backups
-    echo "Usage: $0 <backup_file>"
-    exit 1
-fi
-
-restore_backup "$1"
-echo "Recovery completed successfully"
+# Clean up old backups (older than 7 days)
+find $BACKUP_DIR -name "*.rdb" -mtime +7 -delete
 ```
 
-This comprehensive deployment guide provides everything needed to deploy VEXIS-CLI-2.2 in various environments, from development setups to production-scale deployments with proper monitoring, security, and backup strategies.
+### Disaster Recovery
+
+```yaml
+# Kubernetes disaster recovery configuration
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: vexiscore-pdb
+  namespace: vexiscore
+spec:
+  minAvailable: 2  # Ensure at least 2 pods are available during disruptions
+  selector:
+    matchLabels:
+      app: vexiscore
+```
+
+```yaml
+# Multi-region deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vexiscore-region-2
+  namespace: vexiscore-region-2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vexiscore
+      region: region-2
+  template:
+    metadata:
+      labels:
+        app: vexiscore
+        region: region-2
+    spec:
+      containers:
+      - name: vexiscore
+        image: vexiscore:latest
+        env:
+        - name: REGION
+          value: "region-2"
+        - name: DATABASE_HOST
+          value: "postgres-region-2"
+```
+
+## Monitoring and Maintenance
+
+### Health Checks
+
+```bash
+# Health check endpoints
+curl -X GET http://localhost:8000/health
+curl -X GET http://localhost:8000/ready
+curl -X GET http://localhost:8000/live
+
+# Health check response
+{
+  "status": "healthy",
+  "timestamp": "2026-05-24T22:00:00Z",
+  "components": {
+    "database": {
+      "status": "connected",
+      "connection_time": 12
+    },
+    "redis": {
+      "status": "connected",
+      "memory_usage": 2048
+    },
+    "api": {
+      "status": "operational",
+      "version": "2.1.0"
+    }
+  }
+}
+```
+
+### Performance Monitoring
+
+```bash
+# Prometheus metrics endpoint
+curl http://localhost:9090/metrics
+
+# Example metrics
+# HELP vexiscore_active_tasks Total number of active tasks
+# TYPE vexiscore_active_tasks gauge
+vexis_active_tasks 5.0
+# HELP vexiscore_task_duration_seconds Task duration in seconds
+# TYPE vexiscore_task_duration_seconds histogram
+vexis_task_duration_seconds{le="60"} 100.0
+vexis_task_duration_seconds{le="300"} 250.0
+vexis_task_duration_seconds{le="600"} 300.0
+```
+
+### Log Management
+
+```bash
+# Structured logging format
+{
+  "timestamp": "2026-05-24T22:30:00Z",
+  "level": "INFO",
+  "service": "vexis-core",
+  "phase": "phase3",
+  "task_id": "task_123",
+  "message": "Task completed successfully",
+  "duration": 120.5,
+  "result": {
+    "backup_size": "10GB",
+    "encryption_applied": true
+  }
+}
+
+# Log rotation configuration
+/var/log/vexis/vexis.log {
+  daily
+  rotate 30
+  compress
+  delaycompress
+  notifempty
+  missingok
+  copytruncate
+}
+```
+
+## Security Considerations
+
+### Network Security
+
+```yaml
+# Network policies (Kubernetes)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vexiscore-network-policy
+  namespace: vexiscore
+spec:
+  podSelector:
+    matchLabels:
+      app: vexiscore
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+      - ipBlock:
+          cidr: 10.0.0.0/16
+      - namespaceSelector:
+          matchLabels:
+            name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  - to:
+      - ipBlock:
+          cidr: 10.0.0.0/16
+    ports:
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 6379
+```
+
+### Secrets Management
+
+```yaml
+# Secrets management (Kubernetes)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vexiscore-secrets
+  namespace: vexiscore
+type: Opaque
+data:
+  db-password: cGFzc3dvcmQxMjM=  # base64 encoded
+  redis-password: cGFzc3dvcmQxMjM=  # base64 encoded
+  api-key: cGFzc3dvcmQxMjM=  # base64 encoded
+```
+
+### Security Hardening
+
+```bash
+# Security hardening script
+#!/bin/bash
+# Update system packages
+sudo apt-get update && sudo apt-get upgrade -y
+
+# Install security tools
+sudo apt-get install -y fail2ban ufw
+
+# Configure firewall
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw enable
+
+# Install SSL certificate (Let's Encrypt)
+sudo apt-get install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d api.vexis.example.com
+
+# Configure fail2ban
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+```
+
+## Troubleshooting
+
+### Common Deployment Issues
+
+#### Database Connection Issues
+
+**Error**: `Connection refused for database host`
+
+**Solution**:
+1. Verify database service is running
+2. Check network connectivity
+3. Verify database credentials
+
+```bash
+# Check database service status
+sudo systemctl status postgresql
+
+# Test database connectivity
+nc -zv localhost 5432
+
+# Verify database credentials
+python3 manage.py check_db_connection --config production.yaml
+```
+
+#### Redis Connection Issues
+
+**Error**: `Redis connection failed`
+
+**Solution**:
+1. Verify Redis service is running
+2. Check Redis password configuration
+3. Verify network connectivity
+
+```bash
+# Check Redis service status
+sudo systemctl status redis
+
+# Test Redis connectivity
+redis-cli -h localhost -p 6379 ping
+
+# Verify Redis configuration
+redis-cli -h localhost -p 6379 info | grep -E "connected_clients|used_memory"
+```
+
+#### API Authentication Issues
+
+**Error**: `401 Unauthorized - Invalid API key`
+
+**Solution**:
+1. Verify API key is correct
+2. Check API key permissions
+3. Verify authentication headers
+
+```bash
+# Verify API key
+echo $AI_AGENT_API_KEY | wc -c  # Check key length
+
+# Test API authentication
+curl -X GET https://api.vexis.example.com/v2/health \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Check API key permissions
+python3 manage.py list_api_keys --config production.yaml
+```
+
+#### Performance Issues
+
+**Error**: `High latency or timeout errors`
+
+**Solution**:
+1. Monitor system resources
+2. Optimize database queries
+3. Scale resources
+
+```bash
+# Monitor system resources
+htop
+nmon
+glances
+
+# Monitor database performance
+pg_stat_statements
+pgBadger
+
+# Optimize database queries
+EXPLAIN ANALYZE SELECT * FROM tasks WHERE status = 'running';
+```
+
+### Log Analysis
+
+```bash
+# View recent logs
+sudo journalctl -u vexiscore -n 50 --no-pager
+
+# Follow logs in real-time
+sudo journalctl -u vexiscore -f
+
+# Filter logs by error level
+sudo journalctl -u vexiscore -p err -n 100
+
+# Search for specific patterns
+sudo journalctl -u vexiscore | grep -i "phase.*failed"
+sudo journalctl -u vexiscore | grep -i "timeout"
+```
+
+### Debugging Tools
+
+```bash
+# Network debugging
+netstat -tuln | grep :8000
+ss -ltn | grep :8000
+curl -v http://localhost:8000/health
+
+# Process debugging
+ps aux | grep vexiscore
+top -p $(pgrep -f vexiscore)
+
+# Resource monitoring
+htop
+nmon
+glances
+dstat
+
+# Database debugging
+psql -h localhost -p 5432 -U vexis_prod -d vexiscore_prod
+redis-cli -h localhost -p 6379 info
+```
+
+---
+
+**Deployment Version**: 2.1.0  
+**Last Updated**: 2026-05-24  
+**Next Steps**: After deployment, configure monitoring, set up backup procedures, and perform security hardening

@@ -1,38 +1,31 @@
-# VEXIS-CLI Configuration Example
-# Copy this file to config.yaml and customize as needed
+# =============================================================================
+# VEXIS-CLI-3 Configuration Example (NEW layered schema)
+#
+# Copy this file to `config.yaml` (or set VEXIS_CONFIG_DIR) and customize.
+#
+# SECURITY: API keys / secrets are NEVER stored here. They are resolved at
+# runtime, in this order (most specific wins):
+#   1. runtime override (CLI flag)   2. environment variable
+#   3. .env file (python-dotenv)    4. OS keyring (optional)
+# See https://github.com/AInohogosya/VEXIS-CLI-3 for the env-var name of
+# each provider. A reference is printed by:  vexis providers
+# =============================================================================
 
-# AI Provider Configuration
 api:
-  # Primary provider: ollama, groq, google, openai, anthropic, xai, meta, mistral, microsoft, amazon, cohere, deepseek, together, minimax, zhipuai, openrouter
+  # Primary provider: ollama, google, openai, anthropic, xai, meta,
+  # mistral, microsoft, amazon, cohere, deepseek, together, minimax,
+  # zhipuai, openrouter
   preferred_provider: "ollama"
-  
-  # API Keys (Set via environment variables for security)
-  # Or configure here: google: "", groq: "", openai: "", anthropic: "", xai: "", meta: "", mistral: "", microsoft: "", cohere: "", deepseek: "", together: "", minimax: "", zhipuai: "", openrouter: ""
-  api_keys:
-    google: ""
-    groq: ""
-    openai: ""
-    anthropic: ""
-    xai: ""
-    meta: ""
-    mistral: ""
-    microsoft: ""
-    cohere: ""
-    deepseek: ""
-    together: ""
-    minimax: ""
-    zhipuai: ""
-    openrouter: ""
-  
-  # Ollama (local) settings
+
+  # Ollama (local) settings -- no API key required
   local_endpoint: "http://localhost:11434"
   local_model: "llama3.2:3b"
-  
-  # Model configurations
+
+  # Per-provider default model. Override per provider; the secret (API key)
+  # is resolved from the environment / .env, NOT from this file.
   models:
     ollama: "llama3.2:3b"
     google: "gemini-3.1-pro-preview"
-    groq: "llama-3.3-70b-versatile"
     openai: "gpt-4o"
     anthropic: "claude-3.5-sonnet-20241022"
     xai: "grok-2"
@@ -46,74 +39,59 @@ api:
     minimax: "minimax-text-01"
     zhipuai: "glm-4"
     openrouter: "openai/gpt-oss-120b"
-  
-  # Timeout settings
-  timeout: 131400
-  max_retries: 7
 
-# Security Configuration (All features DISABLED by default)
+  # Timeouts / retries (validated: timeout > 0, max_retries >= 0)
+  timeout: 60
+  max_retries: 3
+  retry_delay: 1.0
+
+  # Prompt compression (triggers automatically near the token limit)
+  compression_enabled: true
+  compression_threshold: 6000       # tokens before compression
+  compression_target_ratio: 50    # target size after compression (%)
+  compression_max_tokens: 4000
+  compression_model: ""            # empty = use current model
+
+# Security Configuration (all features DISABLED by default)
 security:
-  # NEW in v2.1: Command blocking settings
-  # Set to true to enable safety features
-  
-  # Block dangerous commands (rm -rf /, fork bomb, etc.)
   enable_command_blocking: false
-  
-  # Require confirmation before executing risky commands (rm -rf, sudo, etc.)
   enable_confirmation_prompts: false
-  
-  # Show warning for sudo commands
   enable_sudo_warning: false
-  
-  # Show warning for pipe-to-shell commands (curl ... | bash)
   enable_shell_pipe_warning: false
-  
-  # Use sandbox tools (firejail, bubblewrap, nsjail) when available
   enable_sandbox: true
-  
-  # Legacy settings (deprecated, do not use)
-  # blacklist_mode: false
-  # whitelist_mode: false
+  command_timeout: 1800
 
 # Execution Configuration
 execution:
-  # Safety settings
-  safety_mode: true          # Enable general safety checks
-  dry_run: false             # Show commands without executing
-  verify_commands: true      # Validate commands before execution
-  
-  # Timeouts
-  command_timeout: 1800      # seconds per command (30 minutes)
-  task_timeout: 2700         # seconds per task (45 minutes)
-  
-  # Retry settings
-  max_iterations: 500         # max phase 2-4 loops
-  auto_recovery: true        # auto-retry on failure
+  safety_mode: true
+  dry_run: false
+  verify_commands: true
+  command_timeout: 1800
+  task_timeout: 2700
+  max_iterations: 500
+  auto_recovery: true
 
 # Logging Configuration
 logging:
-  level: "INFO"              # DEBUG, INFO, WARNING, ERROR
-  file: "vexis.log"          # log file path (optional)
-  json_format: false         # structured JSON logging
-  console: true              # output to console
-  
-# Cache Configuration (NEW in v2.1)
-cache:
-  enabled: true              # enable prompt caching
-  max_size: 1000             # max cached entries
-  ttl: 3600                  # cache TTL in seconds (1 hour)
-  persist_to_disk: true      # save cache between sessions
+  level: "INFO"          # DEBUG, INFO, WARNING, ERROR
+  file: "vexis.log"       # optional log file path
+  json_format: false
+  console: true
 
-# Cost Management (NEW in v2.1)
+# Cache Configuration
+cache:
+  enabled: true
+  max_size: 1000
+  ttl: 3600
+  persist_to_disk: true
+
+# Cost Management (USD). null = unlimited.
 cost:
-  # Budget limits (in USD)
-  daily_budget: null         # e.g., 10.0 for $10/day
-  monthly_budget: null       # e.g., 100.0 for $100/month
-  per_request_budget: null   # e.g., 0.50 for 50 cents/request
-  
-  # Alerts
-  warning_threshold: 0.8     # alert at 80% of budget
-  critical_threshold: 0.95   # alert at 95% of budget
+  daily_budget: null
+  monthly_budget: null
+  per_request_budget: null
+  warning_threshold: 0.8
+  critical_threshold: 0.95
 
 # Performance Configuration
 performance:
@@ -127,29 +105,20 @@ user:
   auto_confirm: false
   show_progress: true
 
-# Telegram Configuration (NEW in v2.1)
+# Telegram Configuration (optional bot mode)
 telegram:
-  enabled: false              # Enable Telegram bot mode
-  bot_token: ""               # Telegram bot token from @BotFather
-  bot_username: ""            # Telegram bot username
-  api_id: 0                   # Telegram API ID
-  api_hash: ""                # Telegram API hash
-  session_name: "vexis_telegram"  # Session name for Telegram client
-  
-  # Contacts configuration (replace with your own)
-  contacts: []                # List of contacts with name, phone, telegram fields
-  
-  # Authorization settings
-  authorized_users: []        # List of authorized user IDs
-  output_recipients: []       # List of recipients for output
-  
-  # Feature settings
-  enable_input_listener: true # Enable Telegram input listener
-  send_phase2_end_updates: true # Send updates when Phase 2 ends
-  max_history_length: 50      # Maximum number of conversation history entries to keep
+  enabled: false
+  bot_token: ""
+  bot_username: ""
+  api_id: 0
+  api_hash: ""
+  session_name: "vexis_telegram"
+  contacts: []
+  authorized_users: []
+  output_recipients: []
+  enable_input_listener: true
+  send_phase2_end_updates: true
+  max_history_length: 50
 
-# Custom System Prompts (NEW in v2.2)
-# Custom prompts that users can freely configure and include in system prompts
-custom_system_prompt: ""      # Custom prompt to inject into Phase 1 system prompt only
-                              # Leave empty to disable. This applies only to Phase 1.
-
+# Custom System Prompt (Phase 1 only; leave empty to disable)
+custom_system_prompt: ""

@@ -1,10 +1,11 @@
 """
-Telegram Bot Integration for VEXIS-CLI AI Agent
+Telegram Bot Integration for VEXIS-CLI-3 AI Agent
 Handles Telegram bot communication and message management
 """
 
 import asyncio
 import inspect
+import traceback
 import threading
 import time
 from typing import Optional, Dict, Any, List, Callable
@@ -118,35 +119,177 @@ class TelegramMode(Enum):
 
 @dataclass
 class ConversationHistory:
-    """Conversation history for Telegram mode"""
+    """Conversation history with file-based persistence."""
     user_id: int
     messages: List[Dict[str, str]] = field(default_factory=list)
     max_length: int = 50
-    
+    completed_tasks: List[Dict[str, Any]] = field(default_factory=list)
+    history_dir: Optional[str] = None
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+
+    def set_history_dir(self, history_dir: str, load: bool = True):
+        """Set the history directory and optionally load any existing persisted state."""
+        self.history_dir = history_dir
+        if load:
+            self._load()
+
+    def _get_history_file(self) -> Optional[Path]:
+        if self.history_dir is None:
+            return None
+        return Path(self.history_dir) / f"conversation_history_{self.user_id}.json"
+
+    def save(self):
+        """Persist the current conversation state to disk as JSON."""
+        with self._lock:
+            self._save_locked()
+
+    def _save_locked(self):
+        file_path = self._get_history_file()
+        if file_path is None:
+            return
+        try:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "user_id": self.user_id,
+                "messages": self.messages,
+                "max_length": self.max_length,
+                "completed_tasks": self.completed_tasks,
+            }
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except (OSError, IOError) as e:
+            from ..utils.logger import get_logger
+            get_logger("conversation_history").warning(f"Failed to save history: {e}")
+
+    def _load(self):
+        """Restore conversation state from disk if the file exists."""
+        file_path = self._get_history_file()
+        if file_path is None or not file_path.exists():
+            return
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            with self._lock:
+                self.messages = data.get("messages", [])
+                self.max_length = data.get("max_length", 50)
+                self.completed_tasks = data.get("completed_tasks", [])
+            from ..utils.logger import get_logger
+            get_logger("conversation_history").info(
+                "Loaded persisted conversation history",
+                user_id=self.user_id,
+                messages=len(self.messages),
+                tasks=len(self.completed_tasks),
+            )
+        except (OSError, IOError, json.JSONDecodeError) as e:
+            from ..utils.logger import get_logger
+            get_logger("conversation_history").warning(f"Failed to load history: {e}")
+
+    def clear_file(self):
+        """Delete the persisted history file from disk."""
+        file_path = self._get_history_file()
+        if file_path is not None and file_path.exists():
+            try:
+                file_path.unlink()
+            except (OSError, IOError) as e:
+                from ..utils.logger import get_logger
+                get_logger("conversation_history").warning(f"Failed to delete history file: {e}")
+
     def add_message(self, role: str, content: str):
-        """Add a message to the conversation history"""
-        self.messages.append({"role": role, "content": content})
-        # Trim to max length
-        if len(self.messages) > self.max_length:
-            self.messages = self.messages[-self.max_length:]
-    
+        """Add a message to the conversation history and persist."""
+        with self._lock:
+            self.messages.append({"role": role, "content": content})
+            if len(self.messages) > self.max_length:
+                self.messages = self.messages[-self.max_length:]
+            self._save_locked()
+
+    def add_completed_task(self, task_prompt: str, steps: List[str], summary: str = ""):
+        """
+        Record a completed task with its step list.
+        Only completed tasks are stored - in-progress tasks are excluded.
+        
+        Args:
+            task_prompt: The original user instruction for this task
+            steps: The list of completed steps
+            summary: Optional final summary from Phase 5
+        """
+        with self._lock:
+            self.completed_tasks.append({
+                "task": task_prompt,
+                "steps": list(steps),
+                "summary": summary,
+                "status": "completed",
+            })
+            if len(self.completed_tasks) > self.max_length:
+                self.completed_tasks = self.completed_tasks[-self.max_length:]
+            self._save_locked()
+
+    def add_cancelled_task(self, task_prompt: str, steps: List[str], summary: str = ""):
+        """
+        Record a task that was cancelled due to a newer user request.
+        Partial progress (completed steps before cancellation) is preserved
+        so that the next task has full context of what was already done.
+        
+        Args:
+            task_prompt: The original user instruction for the cancelled task
+            steps: The list of steps that were completed before cancellation
+            summary: Optional progress summary from the last completed phase
+        """
+        with self._lock:
+            self.completed_tasks.append({
+                "task": task_prompt,
+                "steps": list(steps),
+                "summary": summary,
+                "status": "cancelled",
+            })
+            if len(self.completed_tasks) > self.max_length:
+                self.completed_tasks = self.completed_tasks[-self.max_length:]
+            self._save_locked()
+
     def get_history(self) -> List[Dict[str, str]]:
         """Get the conversation history"""
         return self.messages
-    
+
     def clear(self):
-        """Clear the conversation history"""
-        self.messages = []
-    
+        """Clear the in-memory conversation history and delete the persisted file."""
+        with self._lock:
+            self.messages = []
+            self.completed_tasks = []
+        self.clear_file()
+
     def format_for_prompt(self) -> str:
-        """Format conversation history for inclusion in prompts"""
-        if not self.messages:
-            return ""
+        """
+        Format conversation history for inclusion in prompts.
         
-        formatted = "Conversation History:\n"
-        for msg in self.messages:
-            formatted += f"{msg['role']}: {msg['content']}\n"
-        return formatted
+        Returns the entire conversation history as the main prompt content,
+        including completed tasks' step lists displayed as already-done work.
+        Both fully completed tasks and cancelled tasks (partial progress)
+        are included so the model has full context.
+        """
+        parts = []
+        
+        if self.completed_tasks:
+            parts.append("=== Previously Completed Tasks ===")
+            for i, task in enumerate(self.completed_tasks, 1):
+                status_tag = task.get("status", "completed")
+                if status_tag == "cancelled":
+                    parts.append(f"Task {i} [CANCELLED - superseded by newer instruction]: {task['task']}")
+                else:
+                    parts.append(f"Task {i}: {task['task']}")
+                if task['steps']:
+                    parts.append("Completed Steps:")
+                    for j, step in enumerate(task['steps'], 1):
+                        parts.append(f"  {j}. {step} [DONE]")
+                if task['summary']:
+                    parts.append(f"Result: {task['summary']}")
+                parts.append("")
+        
+        if self.messages:
+            parts.append("=== Conversation History ===")
+            for msg in self.messages:
+                role_label = "User" if msg['role'] == 'user' else "Assistant"
+                parts.append(f"{role_label}: {msg['content']}")
+        
+        return "\n".join(parts)
 
 
 @dataclass
@@ -180,12 +323,13 @@ class TelegramBotManager:
     - /reset command handling
     """
     
-    def __init__(self, bot_token: str, allowed_user_ids: Optional[List[int]] = None, max_history_length: int = 50, terminal_history=None):
+    def __init__(self, bot_token: str, allowed_user_ids: Optional[List[int]] = None, max_history_length: int = 50, terminal_history=None, history_dir: Optional[str] = None):
         self.bot_token = bot_token
         self.allowed_user_ids = allowed_user_ids or []
         self.max_history_length = max_history_length
         self.logger = get_logger("telegram_bot")
         self.terminal_history = terminal_history
+        self.history_dir = history_dir
         
         # Conversation history per user
         self.conversation_histories: Dict[int, ConversationHistory] = {}
@@ -193,6 +337,9 @@ class TelegramBotManager:
         # Callback for processing messages
         self.message_callback: Optional[Callable[[str, int], str]] = None
         self.restart_callback: Optional[Callable[[int], None]] = None
+
+        # Reference to the engine for saving partial context before task cancellation
+        self.engine: Optional[Any] = None
         
         # Track running tasks per user so a newer prompt can supersede old work
         self._current_tasks: Dict[int, RunningTelegramTask] = {}
@@ -230,10 +377,13 @@ class TelegramBotManager:
     def get_conversation_history(self, user_id: int) -> ConversationHistory:
         """Get or create conversation history for a user"""
         if user_id not in self.conversation_histories:
-            self.conversation_histories[user_id] = ConversationHistory(
+            conv = ConversationHistory(
                 user_id=user_id,
                 max_length=self.max_history_length
             )
+            if self.history_dir is not None:
+                conv.set_history_dir(self.history_dir)
+            self.conversation_histories[user_id] = conv
         return self.conversation_histories[user_id]
     
     def clear_conversation_history(self, user_id: int):
@@ -255,12 +405,12 @@ class TelegramBotManager:
             return
         
         await update.message.reply_text(
-                    "VEXIS-CLI AI Agent\n\n"
-                    "Send me commands and I'll execute them on your computer.\n"
-                    "Use /reset to clear conversation history.\n"
-                    "Use /restart to restart while keeping current settings.\n"
-                    "Use /help for more information."
-                )
+            "🤖 VEXIS-CLI-3 AI Agent\n\n"
+            "Send me commands and I'll execute them on your computer.\n"
+            "Use /reset to clear conversation history.\n"
+            "Use /restart to restart while keeping current settings.\n"
+            "Use /help for more information."
+        )
     
     @retry_on_network_error(max_retries=10, initial_delay=1.0, backoff_factor=2.0)
     async def reset_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -281,7 +431,7 @@ class TelegramBotManager:
             self.terminal_history.clear_session()
             self.logger.info(f"Cleared terminal history for user {user_id}")
         
-        await update.message.reply_text("Conversation history and terminal logs cleared.")
+        await update.message.reply_text("✅ Conversation history and terminal logs cleared.")
     
     @retry_on_network_error(max_retries=10, initial_delay=1.0, backoff_factor=2.0)
     async def restart_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -294,13 +444,18 @@ class TelegramBotManager:
         if not self._is_user_allowed(user_id):
             return
 
+        # Save partial progress from the cancelled task into conversation history
+        history = self.get_conversation_history(user_id)
+        if self.engine is not None:
+            self.engine.get_partial_context(history)
+
         await self._cancel_user_task(user_id)
-        await update.message.reply_text("Restarting VEXIS-CLI with the same provider, model, and API settings...")
+        await update.message.reply_text("🔄 Restarting VEXIS-CLI-3 with the same provider, model, and API settings...")
 
         if self.restart_callback:
             self.restart_callback(user_id)
         else:
-            await update.message.reply_text("Restart is not configured for this bot session.")
+            await update.message.reply_text("⚠️ Restart is not configured for this bot session.")
 
     @retry_on_network_error(max_retries=10, initial_delay=1.0, backoff_factor=2.0)
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -314,14 +469,14 @@ class TelegramBotManager:
             return
         
         await update.message.reply_text(
-                    "VEXIS-CLI AI Agent Help\n\n"
-                    "Commands:\n"
-                    "/start - Start the bot\n"
-                    "/reset - Clear conversation history\n"
-                    "/restart - Restart while keeping current provider/model/API settings\n"
-                    "/help - Show this help message\n\n"
-                    "Just send any instruction and I'll execute it on your computer!"
-                )
+            "📖 VEXIS-CLI-3 AI Agent Help\n\n"
+            "Commands:\n"
+            "/start - Start the bot\n"
+            "/reset - Clear conversation history\n"
+            "/restart - Restart while keeping current provider/model/API settings\n"
+            "/help - Show this help message\n\n"
+            "Just send any instruction and I'll execute it on your computer!"
+        )
     
     async def _cancel_user_task(self, user_id: int):
         """Signal any running task for the specified user to stop."""
@@ -342,8 +497,8 @@ class TelegramBotManager:
             if len(inspect.signature(self.message_callback).parameters) >= 3:
                 return await loop.run_in_executor(None, self.message_callback, user_message, user_id, cancel_event)
             return await loop.run_in_executor(None, self.message_callback, user_message, user_id)
-        return "Message callback not set. Bot not properly configured."
-
+        return "⚠️ Message callback not set. Bot not properly configured."
+    
     @retry_on_network_error(max_retries=10, initial_delay=1.0, backoff_factor=2.0)
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle incoming messages without letting earlier background work block the bot."""
@@ -374,16 +529,20 @@ class TelegramBotManager:
         async with self._task_lock:
             running_task = self._current_tasks.get(user_id)
             if running_task and not running_task.task.done():
+                # Save partial progress from the cancelled task into conversation history
+                history = self.get_conversation_history(user_id)
+                if self.engine is not None:
+                    self.engine.get_partial_context(history)
                 running_task.cancel_event.set()
                 running_task.task.cancel()
-                await update.message.reply_text("Previous request cancelled. Switching to your latest message...")
+                await update.message.reply_text("🔄 Previous request cancelled. Switching to your latest message...")
         
         # Add user message to conversation history
         history = self.get_conversation_history(user_id)
         history.add_message("user", user_message)
         
         # Send processing message
-        processing_msg = await update.message.reply_text("Processing your request...")
+        processing_msg = await update.message.reply_text("⏳ Processing your request...")
         
         # Create and track new task for this user
         cancel_event = threading.Event()
@@ -420,21 +579,27 @@ class TelegramBotManager:
                 # processor. Do not drain the queue here: doing so can keep this
                 # handler alive indefinitely if Telegram is temporarily down.
             else:
-                await processing_msg.edit_text("Message callback not set. Bot not properly configured.")
+                await processing_msg.edit_text("⚠️ Message callback not set. Bot not properly configured.")
                 
         except asyncio.CancelledError:
             self.logger.info(f"Task for user {user_id} cancelled - switching to new task")
             try:
-                await processing_msg.edit_text("Task cancelled - processing new request...")
+                await processing_msg.edit_text("🔄 Task cancelled - processing new request...")
             except Exception as e:
                 self.logger.error(f"Error editing message: {e}")
             raise
         except Exception as e:
-            self.logger.error(f"Error processing message: {e}")
+            # Log full traceback for debugging
+            tb = traceback.format_exc()
+            self.logger.error(f"Error processing message: {e}\n{tb}")
             try:
-                await processing_msg.edit_text(f"Error processing your request: {str(e)}")
-            except Exception as e:
-                self.logger.error(f"Error editing message: {e}")
+                # Include exception type, message, and a short traceback snippet
+                short_tb = "\n".join(tb.splitlines()[:5])
+                await processing_msg.edit_text(
+                    f"❌ Error processing your request: {type(e).__name__}: {e}\n{short_tb}"
+                )
+            except Exception as e_edit:
+                self.logger.error(f"Error editing message: {e_edit}")
                 pass
         finally:
             # Clean up task reference
@@ -446,7 +611,6 @@ class TelegramBotManager:
     def _is_user_allowed(self, user_id: int) -> bool:
         """Check if user is allowed to use the bot"""
         if not self.allowed_user_ids:
-            # If no allowed users specified, allow everyone
             return True
         return user_id in self.allowed_user_ids
     
@@ -506,7 +670,7 @@ class TelegramBotManager:
         """Pop messages that are due to be sent, leaving delayed retries queued."""
         now = time.time()
         sendable: List[QueuedTelegramMessage] = []
-        delayed: List[QueuedTelegramMessage] = []
+        remaining: List[QueuedTelegramMessage] = []
 
         with self._queue_lock:
             while self.message_queue:
@@ -514,9 +678,9 @@ class TelegramBotManager:
                 if queued_message.next_attempt_at <= now:
                     sendable.append(queued_message)
                 else:
-                    delayed.append(queued_message)
+                    remaining.append(queued_message)
 
-            self.message_queue = delayed + self.message_queue
+            self.message_queue = remaining
 
         return sendable
 
@@ -666,19 +830,20 @@ class TelegramBotManager:
                     self.logger.info("No running event loop, bot will stop on next polling cycle")
 
 
-def create_telegram_bot(config_path: Optional[str] = None, terminal_history=None) -> Optional[TelegramBotManager]:
+def create_telegram_bot(config_path: Optional[str] = None, terminal_history=None, history_dir: Optional[str] = None) -> Optional[TelegramBotManager]:
     """
     Create a Telegram bot manager from configuration
     
     Args:
         config_path: Path to config.yaml file. If None, loads from default location.
         terminal_history: Optional TerminalHistory instance for command execution.
+        history_dir: Optional directory for persisting conversation history.
         
     Returns:
         TelegramBotManager instance or None if telegram is disabled or not available
     """
     if not TELEGRAM_AVAILABLE:
-        print("python-telegram-bot library not installed")
+        print("⚠️ python-telegram-bot library not installed")
         print("To enable Telegram mode, install it with:")
         print("  pip install python-telegram-bot>=21.0.0")
         return None
@@ -726,7 +891,7 @@ def create_telegram_bot(config_path: Optional[str] = None, terminal_history=None
         
         bot_token = telegram_config.get('bot_token', '')
         if not bot_token:
-            print("Telegram bot token not configured")
+            print("⚠️ Telegram bot token not configured")
             print("Please set bot_token in config.yaml under telegram section")
             return None
         
@@ -737,8 +902,9 @@ def create_telegram_bot(config_path: Optional[str] = None, terminal_history=None
             bot_token=bot_token,
             allowed_user_ids=allowed_user_ids,
             max_history_length=max_history_length,
-            terminal_history=terminal_history
+            terminal_history=terminal_history,
+            history_dir=history_dir,
         )
     except Exception as e:
-        print(f"Error loading Telegram configuration: {e}")
+        print(f"⚠️ Error loading Telegram configuration: {e}")
         return None

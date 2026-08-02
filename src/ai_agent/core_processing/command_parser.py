@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from ..external_integration.model_runner import get_model_runner
+from .code_block_handler import extract_code_block, remove_code_blocks, has_code_block
 
 # Simple exception classes
 class CommandParsingError(Exception):
@@ -138,13 +139,22 @@ class CommandParser:
         # Remove extra whitespace but preserve structure for validation
         cleaned = ' '.join(command_text.split())
         
-        # Remove markdown code blocks if present
+        # Remove code block markers (Markdown, XML, BBCode, Custom, HTML)
         if cleaned.startswith('```bash'):
             cleaned = cleaned[7:].strip()
         elif cleaned.startswith('```'):
             cleaned = cleaned[3:].strip()
         if cleaned.endswith('```'):
             cleaned = cleaned[:-3].strip()
+
+        code_block_openers = ['<code>', '<code ', '[code]', '---code---', '<pre><code>', '<pre><code ']
+        code_block_closers = ['</code>', '[/code]', '---end-code---', '</code></pre>']
+        for opener in code_block_openers:
+            if cleaned.startswith(opener):
+                cleaned = cleaned[len(opener):].strip()
+        for closer in code_block_closers:
+            if cleaned.endswith(closer):
+                cleaned = cleaned[:len(cleaned) - len(closer)].strip()
         
         # Remove line number prefixes like "Line 3:", "Line 1:", etc.
         line_number_pattern = r'^Line \d+:\s*'
@@ -165,6 +175,14 @@ class CommandParser:
             r'^#.*$',  # Headers
             r'^Note:.*$',  # Notes
             r'^\*\*Note:\*\*.*$',  # Bold notes
+            r'^<code>.*$',  # XML code block markers
+            r'^</code>.*$',
+            r'^\[code\].*$',  # BBCode code block markers
+            r'^\[/code\].*$',
+            r'^---code---.*$',  # Custom delimiter code block markers
+            r'^---end-code---.*$',
+            r'^<pre><code>.*$',  # HTML code block markers
+            r'^</code></pre>.*$',
         ]
         
         for pattern in markdown_patterns:

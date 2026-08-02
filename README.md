@@ -1,16 +1,16 @@
 
 <div align="center">
 
-# VEXIS-CLI
+# VEXIS-CLI-3
 
-![VEXIS CLI image](VEXIS-CLI.png)
+![VEXIS CLI image](VEXIS-CLI-3.png)
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge&logo=opensource)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Production_Ready-orange?style=for-the-badge&logo=rocket)]()
-[![Providers](https://img.shields.io/badge/AI_Providers-16+-purple?style=for-the-badge&logo=artstation)](#ai-providers)
+[![Providers](https://img.shields.io/badge/AI_Providers-17-purple?style=for-the-badge&logo=artstation)](#ai-providers)
 
-**🧠 Advanced 5-Phase AI-powered terminal automation system**
+**🧠 Advanced 8-Phase AI-powered terminal automation system**
 
 *Transform natural language into precise terminal commands with intelligent multi-phase processing*
 
@@ -22,33 +22,41 @@
 
 ---
 
-## ✨ Why VEXIS-CLI?
+## ✨ Why VEXIS-CLI-3?
 
-**VEXIS-CLI** represents a quantum leap in command-line automation, featuring a sophisticated **5-Phase Pipeline Architecture** that delivers unprecedented accuracy and reliability in natural language to command translation.
+**VEXIS-CLI-3** represents a quantum leap in command-line automation, featuring a sophisticated **8-Phase Pipeline Architecture** that delivers unprecedented accuracy and reliability in natural language to command translation.
 
-🎯 **"Create a backup of my documents folder"** → Intelligent backup with verification  
-🎯 **"Find all Python files with syntax errors"** → Multi-stage code analysis with reporting  
-🎯 **"Set up a development environment for React"** → Complete environment setup with validation  
+🎯 **"Create a backup of my documents folder"** → Intelligent backup with verification
+🎯 **"Find all Python files with syntax errors"** → Multi-stage code analysis with reporting
+🎯 **"Set up a development environment for React"** → Complete environment setup with validation
 
 ---
 
 ## 🌟 Revolutionary Features
 
-### 🧠 **5-Phase Pipeline Architecture**
-- **Phase 1**: Command Suggestion - AI analyzes intent and suggests approach
-- **Phase 2**: Command Extraction - Precise command isolation and validation  
-- **Phase 3**: Command Execution - Safe terminal execution with monitoring
-- **Phase 4**: Log Evaluation - Intelligent error analysis and retry logic
-- **Phase 5**: Summary Generation - Comprehensive result reporting
+### 🧠 **8-Phase Pipeline Architecture**
+- **Phase 0**: Critic & Optimizer — Analyzes the plan for ambiguity and risk before execution
+- **Phase 1**: Initial Planning — AI analyzes intent and generates a step list
+- **Phase 2**: Action Generation — Precise command generation in code blocks
+- **Phase 3**: Execution — Safe terminal execution with monitoring (100% programmatic)
+- **Phase 4**: Dynamic Update — Intelligent error analysis and step list rewriting
+- **Phase 5**: Verification — LLM checks if execution was truly successful
+- **Phase 6**: Summarization — Comprehensive result reporting
+- **Phase 7**: Bot User Review — LLM reviews conversation and evaluates output
 
 ### ⚡ **Advanced Execution Engine**
 - Multi-iteration error recovery with self-correction
+- DAG-based task execution with dependency management
 - Real-time progress tracking and status updates
 - Intelligent fallback mechanisms across providers
 - Comprehensive safety validation and rollback capabilities
+- Predictive Subgoal Graph (PSG) replacing linear step lists
+- Tool Policy Engine with safety/determinism/cost scoring
+- Provenance metadata on all writes and commands
+- Context compression at iteration intervals
 
 ### 🔗 **Universal AI Provider Ecosystem**
-- **16+ AI providers** with unified interface abstraction
+- **17 AI providers** with unified interface abstraction
 - Automatic provider selection based on task requirements
 - Seamless fallback and load balancing across providers
 - Vision API support for image-based tasks
@@ -58,11 +66,13 @@
 - Comprehensive logging with structured output
 - Platform abstraction for cross-platform compatibility
 - Advanced error handling with detailed diagnostics
+- File path validation and sensitive directory protection
 
 ### 🎨 **Modern User Experience**
 - Rich terminal interface with syntax highlighting
-- Interactive provider selection with performance metrics
+- Interactive provider selection with arrow-key curses menus
 - Real-time execution monitoring and feedback
+- Telegram bot mode for remote access
 - Comprehensive documentation and examples
 
 ---
@@ -72,34 +82,33 @@
 ### 🏠 **Local & Privacy-First**
 <div align="center">
 
-**🦙 Ollama** - Complete local AI integration  
-*Recommended 2026 models: `llama-4-scout-17b`, `deepseek-r1`, `qwen2.5:7b`*
+**🦙 Ollama** — Complete local AI integration
+*Recommended models: `llama-4-scout-17b`, `deepseek-r1`, `qwen2.5:7b`*
 
 </div>
 
-### ☁️ **2026 Cloud Powerhouses**
+### ☁️ **Cloud Providers**
 <div align="center">
 
-| Provider | 2026 Models | Speed | Specialty |
-|----------|-------------|-------|-----------|
+| Provider | Models | Speed | Specialty |
+|----------|--------|-------|-----------|
 | 🚀 **Groq** | Llama 3.3 70B, GPT-OSS 120B | ⚡⚡⚡⚡⚡ | Ultra-fast inference |
 | 🔮 **Google** | Gemini 3.1 Pro, Gemini 3 Flash | ⚡⚡⚡⚡ | Enterprise reliability |
-| 🧠 **OpenAI** | GPT-5.4, GPT-5.4-pro, GPT-5-mini | ⚡⚡⚡⚡ | Advanced reasoning |
-| 🎭 **Anthropic** | Claude Opus 4.6, Claude Sonnet 4.5 | ⚡⚡⚡⚡ | Analytical excellence |
-| ⚡ **xAI** | Grok 4.20, Grok 4.20-beta | ⚡⚡⚡⚡ | Real-time knowledge |
-| 🦊 **Meta** | Llama 4 Scout 17B | ⚡⚡⚡ | Open-source leadership |
-| 🌊 **Mistral** | Latest multilingual models | ⚡⚡⚡ | Global applications |
-| 🔷 **Microsoft** | GPT-5.4-pro via Azure | ⚡⚡⚡ | Enterprise integration |
-| 🏔️ **AWS** | Claude Opus 4.6 via Bedrock | ⚡⚡⚡ | Scalable infrastructure |
-| 🎯 **Cohere** | Latest business models | ⚡⚡⚡ | Enterprise workflows |
-| 🔍 **DeepSeek** | DeepSeek R1, DeepSeek V4 | ⚡⚡⚡ | Technical reasoning |
+| 🧠 **OpenAI** | GPT-5.4, GPT-5.4-mini, GPT-4.1 | ⚡⚡⚡⚡ | Advanced reasoning |
+| 🎭 **Anthropic** | Claude Opus 4.6, Claude Sonnet 4.6 | ⚡⚡⚡⚡ | Analytical excellence |
+| ⚡ **xAI** | Grok 4.1 | ⚡⚡⚡⚡ | Real-time knowledge |
+| 🦊 **Meta** | Llama 4 Scout 17B, Maverick 17B | ⚡⚡⚡ | Open-source leadership |
+| 🌊 **Mistral** | Mistral Large, Medium, Small | ⚡⚡⚡ | Global applications |
+| 🔷 **Microsoft** | GPT-5.4, GPT-4.1 via Azure | ⚡⚡⚡ | Enterprise integration |
+| 🏔️ **AWS** | Claude via Bedrock | ⚡⚡⚡ | Scalable infrastructure |
+| 🎯 **Cohere** | Command R+, Command R | ⚡⚡⚡ | Enterprise workflows |
+| 🔍 **DeepSeek** | DeepSeek Chat, Coder, Reasoner | ⚡⚡⚡ | Technical reasoning |
 | 🤝 **Together** | Llama 4 hosting | ⚡⚡⚡ | Custom model deployment |
-| 🎮 **MiniMax** | Latest generation models | ⚡⚡⚡ | Creative tasks |
-| 🇨🇳 **Zhipu** | GLM latest models | ⚡⚡⚡ | Chinese language |
+| 🎮 **MiniMax** | MiniMax-Text-01, ABAB 6.5S | ⚡⚡⚡ | Productivity tasks |
+| 🇨🇳 **Zhipu** | GLM-5, GLM-5.1, GLM-4 | ⚡⚡⚡ | Chinese language |
+| 🔀 **OpenRouter** | 300+ models via unified API | ⚡⚡⚡ | Model marketplace |
 
 </div>
-
-> 💡 **2026 Recommendations**: **Groq** (speed), **Google Gemini 3.1** (reliability), **OpenAI GPT-5.4** (capability), **Ollama Llama 4** (privacy)
 
 ---
 
@@ -107,8 +116,8 @@
 
 ### 🎯 **Zero-Configuration Quick Start**
 ```bash
-git clone https://github.com/AInohogosya/VEXIS-CLI.git
-cd VEXIS-CLI
+git clone https://github.com/AInohogosya/VEXIS-CLI-3.git
+cd VEXIS-CLI-3
 python3 run.py "list files"  # Auto-setup and run!
 ```
 
@@ -122,7 +131,7 @@ python3 run.py "list files"  # Auto-setup and run!
 > ⚠️ **Note**: Bugs may occur with certain models or providers. If you encounter issues, please try selecting a different model or provider. We will fix the issue as soon as the cause is identified.
 
 ### 🎨 **First Run Experience**
-VEXIS-CLI features an enhanced provider selection interface with real-time performance metrics:
+VEXIS-CLI-3 features an enhanced provider selection interface with real-time performance metrics:
 
 ![Enhanced Provider Selection](Choose_model.png)
 
@@ -130,7 +139,7 @@ VEXIS-CLI features an enhanced provider selection interface with real-time perfo
 
 ## 💻 Usage Examples
 
-### 🏁 **5-Phase Pipeline in Action**
+### 🏁 **8-Phase Pipeline in Action**
 ```bash
 # Simple operations with intelligent validation
 python3 run.py "create a comprehensive README for my project"
@@ -149,17 +158,22 @@ python3 run.py "monitor system resources and alert on anomalies for 24 hours"
 
 ### 🎛️ **Advanced Configuration**
 ```bash
-# Use specific provider with 5-phase pipeline
+# Use specific provider with 8-phase pipeline
 python3 run.py "complex task" --provider groq --model llama-3.3-70b-versatile
 
 # Enable debug mode with detailed phase logging
-python3 run.py "debug task" --debug --phase-logging
+python3 run.py "debug task" --debug
 
 # Skip interactive prompts (uses configured preferences)
-python3 run.py "quick automation" --no-prompt --auto-confirm
+python3 run.py "quick automation" --no-prompt
 
-# Vision-enabled tasks
-python3 run.py "analyze this screenshot and suggest improvements" --image screenshot.png
+# SDK management
+python3 run.py --install-sdks
+python3 run.py --sdk-status
+
+# Environment check
+python3 run.py --check
+python3 run.py --fix
 ```
 
 ---
@@ -167,32 +181,33 @@ python3 run.py "analyze this screenshot and suggest improvements" --image screen
 ## ⚙️ Configuration
 
 ### 📝 **Advanced Configuration System**
-VEXIS-CLI uses a hierarchical configuration system with validation:
+VEXIS-CLI-3 uses a hierarchical configuration system with validation. See [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) for the complete reference.
 
 ```yaml
 # API Configuration
 api:
-  preferred_provider: "groq"
+  preferred_provider: "ollama"
   local_endpoint: "http://localhost:11434"
   local_model: "llama-4-scout-17b"
   timeout: 120
   max_retries: 3
-  auto_fallback: true
 
-# 5-Phase Engine Configuration
+# Engine Configuration
 engine:
-  command_timeout: 1800
-  task_timeout: 7200  # 120 minutes
   max_iterations: 500
-  enable_phase_logging: false
-  auto_recovery: true
+
+# Execution Configuration
+execution:
+  mode: "normal"  # "normal", "telegram", or "auto"
+  command_timeout: 1800
+  task_timeout: 7200
+  max_iterations: 500
 
 # User Preferences
 user:
   name: "Your Name"
   preferred_style: "detailed"  # "concise", "detailed", "friendly"
   auto_confirm: false
-  show_progress: true
 
 # Logging Configuration
 logging:
@@ -200,63 +215,60 @@ logging:
   file: "vexis.log"
   json_format: false
   console: true
-  max_file_size: 10485760  # 10MB
 ```
-
-### 🎯 **2026 Model Recommendations**
-- **🏠 Local**: `llama-4-scout-17b` (balanced), `deepseek-r1` (reasoning), `qwen2.5:7b` (speed)
-- **☁️ Cloud**: `GPT-5.4-pro` (professional), `gemini-3.1-pro` (enterprise), `claude-opus-4.6` (analytical)
 
 ---
 
 ## 🏗️ Advanced Architecture
 
-### 🧠 **5-Phase Pipeline Engine**
+### 🧠 **8-Phase Pipeline Engine**
 
 ```mermaid
 graph TB
-    A[Natural Language Input] --> B[Phase 1: Command Suggestion]
-    B --> C[AI Intent Analysis]
-    B --> D[Strategy Generation]
-    B --> E[Risk Assessment]
-    C --> F[Phase 2: Command Extraction]
-    D --> F
-    E --> F
-    F --> G[Command Isolation]
-    F --> H[Validation & Sanitization]
-    G --> I[Phase 3: Command Execution]
-    H --> I
-    I --> J[Safe Terminal Execution]
-    I --> K[Real-time Monitoring]
-    J --> L[Phase 4: Log Evaluation]
-    K --> L
-    L --> M[Error Analysis]
-    L --> N[Retry Decision Logic]
-    M --> O[Phase 5: Summary Generation]
+    A[Natural Language Input] --> B[Phase 0: Critic & Optimizer]
+    B --> C[PlanGraph Analysis]
+    B --> D[Risk Assessment]
+    C --> E[Phase 1: Initial Planning]
+    D --> E
+    E --> F[Step List Generation]
+    F --> G[Action Type Gate]
+    G -->|run_command| H[Phase 2: Action Generation]
+    G -->|answer_directly| I[Phase 6: Summarization]
+    G -->|ask_user| J[Return Question to User]
+    H --> K[Phase 3: Execution]
+    K --> L[Phase 4: Dynamic Update]
+    L -->|steps remain| H
+    L -->|steps empty| M[Phase 5: Verification]
+    M -->|issues found| H
+    M -->|verified| N[Phase 6: Summarization]
+    I --> O[Phase 7: Bot User Review]
     N --> O
-    O --> P[Comprehensive Reporting]
-    O --> Q[Success Verification]
-    P --> R[Task Complete]
-    Q --> R
+    O -->|corrections| H
+    O -->|approved| P[Task Complete]
 ```
 
 ### 🏛️ **Core Components**
-- **🎯 FivePhaseEngine** - Advanced 5-phase pipeline orchestration
-- **🤖 ModelRunner** - Unified 16+ provider abstraction with fallback
-- **📝 CommandParser** - Enhanced NLP with context awareness
-- **✅ TaskVerifier** - Multi-layer validation and security
-- **🔄 TaskRobustnessManager** - Advanced error recovery and retry logic
-- **📊 TerminalHistory** - Comprehensive execution tracking
+- **🎯 FivePhaseEngine** — Advanced 8-phase pipeline orchestration
+- **🤖 ModelRunner** — Unified 17-provider abstraction with fallback
+- **📊 PlanGraph** — Predictive Subgoal Graph with dependency tracking
+- **🔍 PlanCritic / PlanOptimizer** — Pre-execution plan analysis
+- **📝 CommandParser** — Enhanced NLP with context awareness
+- **🔧 ToolPolicyEngine** — Safety/determinism/cost scoring
+- **📋 ProvenanceTracker** — Metadata on all writes and commands
+- **📚 RepositoryIndex** — Multi-layer code index (symbols, test deps)
+- **✅ FivePhaseVerifier** — Phase 5 verification via LLM
+- **🔄 TaskRobustnessManager** — Advanced error recovery and retry logic
+- **📊 TerminalHistory** — Comprehensive execution tracking
 
 ---
 
 ## 🛠️ Development & Contributing
 
-### 🤝 **Contributing to VEXIS-CLI**
+### 🤝 **Contributing to VEXIS-CLI-3**
 We welcome contributions to our advanced AI automation platform:
 
 1. **🐛 Bug Reports**: Use our detailed issue templates for precise reporting
-2. **💡 Feature Requests**: Propose enhancements to the 5-phase pipeline
+2. **💡 Feature Requests**: Propose enhancements to the 8-phase pipeline
 3. **🔧 Pull Requests**: Follow our strict code quality standards
 4. **📖 Documentation**: Help maintain our comprehensive docs
 5. **🧪 Testing**: Contribute to our extensive test coverage
@@ -266,15 +278,9 @@ We welcome contributions to our advanced AI automation platform:
 # Run comprehensive test suite
 python3 -m pytest tests/ --cov=src
 
-# Test 5-phase pipeline components
-python3 test_five_phase_engine.py
-
-# Test provider integrations
-python3 test_cloud_models.py --all-providers
-
 # System validation
-python3 check_environment.py --full-validation
-python3 system_check.py --performance-test
+python3 check_environment.py
+python3 system_check.py
 ```
 
 ### 🔧 **Development Tools**
@@ -283,10 +289,7 @@ python3 system_check.py --performance-test
 python3 manage_sdks.py --install-all
 
 # Model validation
-python3 check_models.py --validate-2026-models
-
-# Performance benchmarking
-python3 test_improved_prompts.py --benchmark
+python3 check_models.py
 ```
 
 ---
@@ -295,7 +298,7 @@ python3 test_improved_prompts.py --benchmark
 
 | Document | Focus | Link |
 |----------|-------|------|
-| 📖 **Architecture Guide** | 5-Phase pipeline deep dive | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) |
+| 📖 **Architecture Guide** | 8-Phase pipeline deep dive | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) |
 | ⚙️ **Configuration Reference** | Complete configuration options | [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) |
 | 🔧 **API Reference** | Provider integration guide | [docs/API_REFERENCE.md](./docs/API_REFERENCE.md) |
 | 🚀 **Deployment Guide** | Production deployment | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) |
@@ -303,6 +306,9 @@ python3 test_improved_prompts.py --benchmark
 | 🔍 **Troubleshooting** | Common issues and solutions | [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) |
 | 🦙 **Ollama Integration** | Local AI setup and optimization | [docs/OLLAMA_INTEGRATION.md](./docs/OLLAMA_INTEGRATION.md) |
 | ⚡ **Error Handling** | Advanced error management | [docs/ERROR_HANDLING.md](./docs/ERROR_HANDLING.md) |
+| 🔗 **Multi-Provider** | Provider integration guide | [docs/MULTI_PROVIDER.md](./docs/MULTI_PROVIDER.md) |
+| 🏗️ **Project Structure** | Codebase overview | [docs/PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md) |
+| 📡 **Runtime Flow** | Execution lifecycle | [docs/RUNTIME_FLOW.md](./docs/RUNTIME_FLOW.md) |
 
 ---
 
@@ -310,14 +316,13 @@ python3 test_improved_prompts.py --benchmark
 
 ### 💬 **Get Help**
 - 📖 [Comprehensive Documentation](./docs/)
-- 🐛 [Advanced Issues: GitHub Issues](https://github.com/AInohogosya/VEXIS-CLI/issues)
-- 💬 [Community Discussions](https://github.com/AInohogosya/VEXIS-CLI/discussions)
-- 🏢 [Enterprise Support](mailto:enterprise@vexis-project.com)
+- 🐛 [GitHub Issues](https://github.com/AInohogosya/VEXIS-CLI-3/issues)
+- 💬 [Community Discussions](https://github.com/AInohogosya/VEXIS-CLI-3/discussions)
 
 ### ⭐ **Show Your Support**
-- **⭐ Star the repository** - Help others discover VEXIS-CLI
-- **🔄 Fork and contribute** - Build on our 5-phase architecture
-- **📝 Share your use cases** - Inspire the community with innovative applications
+- **⭐ Star the repository** — Help others discover VEXIS-CLI-3
+- **🔄 Fork and contribute** — Build on our 8-phase architecture
+- **📝 Share your use cases** — Inspire the community with innovative applications
 
 ---
 
@@ -325,9 +330,9 @@ python3 test_improved_prompts.py --benchmark
 
 ## 🎉 Experience the Future of Terminal Automation
 
-**VEXIS-CLI: Where advanced AI meets precise command execution**
+**VEXIS-CLI-3: Where advanced AI meets precise command execution**
 
-[🚀 Get Started Now](#installation) • [⭐ Star on GitHub](https://github.com/AInohogosya/VEXIS-CLI) • [📖 Explore Documentation](./docs/) • [🏢 Enterprise Support](mailto:AInohogosya@proton.me)
+[🚀 Get Started Now](#installation) • [⭐ Star on GitHub](https://github.com/AInohogosya/VEXIS-CLI-3) • [📖 Explore Documentation](./docs/)
 
 ---
 
@@ -337,6 +342,6 @@ python3 test_improved_prompts.py --benchmark
 
 ---
 
-![VEXIS Logo](https://img.shields.io/badge/VEXIS-2.0-Advanced%20AI%20Automation-blue?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJMMTMuMDkgOC4yNkwyMCA5TDEzLjA5IDE1Ljc0TDEyIDIyTDEwLjkxIDE1Ljc0TDQgOUwxMC45MSA4LjI2TDEyIDJaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K)
+![VEXIS Logo](https://img.shields.io/badge/VEXIS--CLI--3-Advanced%20AI%20Automation-blue?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJMMTMuMDkgOC4yNkwyMCA5TDEzLjA5IDE1Ljc0TDEyIDIyTDEwLjkxIDE1Ljc0TDQgOUwxMC45MSA4LjI2TDEyIDJaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K)
 
 </div>

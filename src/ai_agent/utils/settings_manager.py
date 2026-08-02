@@ -1,20 +1,32 @@
 """
-Settings Manager for VEXIS-1.1 AI Agent
-Handles API key storage and model configuration
+Settings manager adapter for VEXIS-CLI-3.
+
+Thin facade over the modern configuration subsystem
+(:mod:`ai_agent.config`). It preserves the legacy
+``SettingsManager`` / ``APISettings`` / ``get_settings_manager()`` surface so the
+core (multi-provider clients, ollama selector) keeps working unchanged.
+
+All secrets resolve at runtime via :class:`ai_agent.config.secrets.SecretStore`
+(env -> ``.env`` -> keyring); nothing is persisted to disk.
 """
+from __future__ import annotations
 
-import json
-import os
-from pathlib import Path
-from typing import Optional, Dict, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+from typing import List, Optional
 
-from ..utils.logger import get_logger
+from ..config import (
+    ProviderName,
+    get_app_config,
+    get_model_settings,
+    get_provider_registry,
+    get_secret_store,
+)
+from .logger import get_logger
 
 
 @dataclass
 class APISettings:
-    """API settings data structure"""
+    """Legacy snapshot of API keys + per-provider model selection."""
     google_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
@@ -31,481 +43,172 @@ class APISettings:
     minimax_api_key: Optional[str] = None
     zhipuai_api_key: Optional[str] = None
     openrouter_api_key: Optional[str] = None
-    preferred_provider: str = "ollama"  # Must be explicitly set by user
+    preferred_provider: str = "ollama"
     google_model: str = "gemini-3.1-pro-preview"
     groq_model: str = "llama-3.3-70b-versatile"
-    openai_model: str = "gpt-5.4"
-    anthropic_model: str = "claude-opus-4-6-20260219"
-    xai_model: str = "grok-4.1"
-    meta_model: str = "llama-4-scout-17b-16e-instruct"
+    openai_model: str = "gpt-4o"
+    anthropic_model: str = "claude-3.5-sonnet-20241022"
+    xai_model: str = "grok-2"
+    meta_model: str = "llama-3.1-70b-instruct"
     mistral_model: str = "mistral-large-latest"
-    microsoft_model: str = "gpt-5.4"
-    amazon_model: str = "anthropic.claude-opus-4-6-20260219-v1:0"
+    microsoft_model: str = "gpt-4o"
+    amazon_model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
     cohere_model: str = "command-r-plus"
     deepseek_model: str = "deepseek-chat"
-    together_model: str = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
-    minimax_model: str = "MiniMax-Text-01"
-    zhipuai_model: str = "glm-5"
-    openrouter_model: str = "openai/gpt-4o-mini"
-    ollama_model: str = "qwen3.5:2b"
+    together_model: str = "meta-llama/Llama-3.1-70B-Instruct-Turbo"
+    minimax_model: str = "minimax-text-01"
+    zhipuai_model: str = "glm-4"
+    openrouter_model: str = "openai/gpt-oss-120b"
+    ollama_model: str = "llama3.2:3b"
 
 
 class SettingsManager:
-    """Manages application settings and API keys (in-memory only)"""
-    
+    """Manages application settings and API keys (facade over ai_agent.config)."""
+
     def __init__(self):
         self.logger = get_logger("settings_manager")
-        # Initialize with default settings - no file loading
-        self._settings = APISettings()
-    
-    def _load_settings(self) -> APISettings:
-        """Initialize with default settings (no file loading)"""
-        return APISettings()
-    
-    def _save_settings(self):
-        """Settings are no longer persisted - in-memory only"""
-        pass  # No-op - settings are not saved to file
-    
-    def get_settings(self) -> APISettings:
-        """Get current settings"""
-        return self._settings
-    
-    def set_google_api_key(self, api_key: str):
-        """Set Google API key"""
-        self._settings.google_api_key = api_key
-        self.logger.info("Google API key updated")
-    
-    def set_groq_api_key(self, api_key: str):
-        """Set Groq API key"""
-        self._settings.groq_api_key = api_key
-        self.logger.info("Groq API key updated")
-    
-    def set_openai_api_key(self, api_key: str):
-        """Set OpenAI API key"""
-        self._settings.openai_api_key = api_key
-        self.logger.info("OpenAI API key updated")
-    
-    def get_google_api_key(self) -> Optional[str]:
-        """Get Google API key"""
-        return self._settings.google_api_key
-    
-    def get_groq_api_key(self) -> Optional[str]:
-        """Get Groq API key"""
-        return self._settings.groq_api_key
-    
-    def get_preferred_provider(self) -> str:
-        """Get preferred provider"""
-        return self._settings.preferred_provider
-    
-    def has_google_api_key(self) -> bool:
-        """Check if Google API key is available"""
-        return bool(self._settings.google_api_key)
-    
-    def has_groq_api_key(self) -> bool:
-        """Check if Groq API key is available"""
-        return bool(self._settings.groq_api_key)
-    
-    def clear_google_api_key(self):
-        """Clear Google API key"""
-        self._settings.google_api_key = None
-        self.logger.info("Google API key cleared")
-    
-    def clear_groq_api_key(self):
-        """Clear Groq API key"""
-        self._settings.groq_api_key = None
-        self.logger.info("Groq API key cleared")
-    
-    def get_openai_api_key(self) -> Optional[str]:
-        """Get OpenAI API key"""
-        return self._settings.openai_api_key
-    
-    def has_openai_api_key(self) -> bool:
-        """Check if OpenAI API key is available"""
-        return bool(self._settings.openai_api_key)
-    
-    def set_anthropic_api_key(self, api_key: str):
-        """Set Anthropic API key"""
-        self._settings.anthropic_api_key = api_key
-        self.logger.info("Anthropic API key updated")
-    
-    def get_anthropic_api_key(self) -> Optional[str]:
-        """Get Anthropic API key"""
-        return self._settings.anthropic_api_key
-    
-    def has_anthropic_api_key(self) -> bool:
-        """Check if Anthropic API key is available"""
-        return bool(self._settings.anthropic_api_key)
-    
-    def clear_anthropic_api_key(self):
-        """Clear Anthropic API key"""
-        self._settings.anthropic_api_key = None
-        self.logger.info("Anthropic API key cleared")
-    
-    def set_anthropic_model(self, model: str):
-        """Set Anthropic model"""
-        # For now, accept any model name - validation will be done during selection
-        self._settings.anthropic_model = model
-        self.logger.info(f"Anthropic model set to: {model}")
-    
-    def get_anthropic_model(self) -> str:
-        """Get Anthropic model"""
-        return self._settings.anthropic_model
-    
-    def set_google_model(self, model: str):
-        """Set Google model"""
-        # Accept any valid Google model name - validation will be done during selection
-        self._settings.google_model = model
-        self.logger.info(f"Google model set to: {model}")
-    
-    def set_groq_model(self, model: str):
-        """Set Groq model"""
-        # Accept any valid Groq model name - validation will be done during selection
-        self._settings.groq_model = model
-        self.logger.info(f"Groq model set to: {model}")
-    
-    def set_openai_model(self, model: str):
-        """Set OpenAI model"""
-        # Accept any valid OpenAI model name - validation will be done during selection
-        self._settings.openai_model = model
-        self.logger.info(f"OpenAI model set to: {model}")
-    
-    def get_google_model(self) -> str:
-        """Get Google model"""
-        return self._settings.google_model
-    
-    def get_groq_model(self) -> str:
-        """Get Groq model"""
-        return self._settings.groq_model
-    
-    def get_openai_model(self) -> str:
-        """Get OpenAI model"""
-        return self._settings.openai_model
-    
-    def set_ollama_model(self, model: str):
-        """Set Ollama model"""
-        self._settings.ollama_model = model
-        self.logger.info(f"Ollama model set to: {model}")
-    
-    def get_ollama_model(self) -> str:
-        """Get Ollama model"""
-        return self._settings.ollama_model
-    
-    # xAI methods
-    def set_xai_api_key(self, api_key: str):
-        self._settings.xai_api_key = api_key
-    
-    def get_xai_api_key(self) -> Optional[str]:
-        return self._settings.xai_api_key
-    
-    def has_xai_api_key(self) -> bool:
-        return bool(self._settings.xai_api_key)
-    
-    def set_xai_model(self, model: str):
-        self._settings.xai_model = model
-    
-    def get_xai_model(self) -> str:
-        return self._settings.xai_model
-    
-    # Meta methods
-    def set_meta_api_key(self, api_key: str):
-        self._settings.meta_api_key = api_key
-    
-    def get_meta_api_key(self) -> Optional[str]:
-        return self._settings.meta_api_key
-    
-    def has_meta_api_key(self) -> bool:
-        return bool(self._settings.meta_api_key)
-    
-    def set_meta_model(self, model: str):
-        self._settings.meta_model = model
-    
-    def get_meta_model(self) -> str:
-        return self._settings.meta_model
-    
-    # Mistral methods
-    def set_mistral_api_key(self, api_key: str):
-        self._settings.mistral_api_key = api_key
-    
-    def get_mistral_api_key(self) -> Optional[str]:
-        return self._settings.mistral_api_key
-    
-    def has_mistral_api_key(self) -> bool:
-        return bool(self._settings.mistral_api_key)
-    
-    def set_mistral_model(self, model: str):
-        self._settings.mistral_model = model
-    
-    def get_mistral_model(self) -> str:
-        return self._settings.mistral_model
-    
-    # Microsoft/Azure methods
-    def set_microsoft_api_key(self, api_key: str):
-        self._settings.microsoft_api_key = api_key
-    
-    def get_microsoft_api_key(self) -> Optional[str]:
-        return self._settings.microsoft_api_key
-    
-    def has_microsoft_api_key(self) -> bool:
-        return bool(self._settings.microsoft_api_key)
-    
-    def set_microsoft_model(self, model: str):
-        self._settings.microsoft_model = model
-    
-    def get_microsoft_model(self) -> str:
-        return self._settings.microsoft_model
-    
-    # Amazon/Bedrock methods
-    def set_amazon_credentials(self, access_key: str, secret_key: str):
-        self._settings.amazon_access_key = access_key
-        self._settings.amazon_secret_key = secret_key
-    
-    def get_amazon_access_key(self) -> Optional[str]:
-        return self._settings.amazon_access_key
-    
-    def get_amazon_secret_key(self) -> Optional[str]:
-        return self._settings.amazon_secret_key
-    
-    def has_amazon_credentials(self) -> bool:
-        return bool(self._settings.amazon_access_key and self._settings.amazon_secret_key)
-    
-    def set_amazon_model(self, model: str):
-        self._settings.amazon_model = model
-    
-    def get_amazon_model(self) -> str:
-        return self._settings.amazon_model
-    
-    # Cohere methods
-    def set_cohere_api_key(self, api_key: str):
-        self._settings.cohere_api_key = api_key
-    
-    def get_cohere_api_key(self) -> Optional[str]:
-        return self._settings.cohere_api_key
-    
-    def has_cohere_api_key(self) -> bool:
-        return bool(self._settings.cohere_api_key)
-    
-    def set_cohere_model(self, model: str):
-        self._settings.cohere_model = model
-    
-    def get_cohere_model(self) -> str:
-        return self._settings.cohere_model
-    
-    # DeepSeek methods
-    def set_deepseek_api_key(self, api_key: str):
-        self._settings.deepseek_api_key = api_key
-    
-    def get_deepseek_api_key(self) -> Optional[str]:
-        return self._settings.deepseek_api_key
-    
-    def has_deepseek_api_key(self) -> bool:
-        return bool(self._settings.deepseek_api_key)
-    
-    def set_deepseek_model(self, model: str):
-        self._settings.deepseek_model = model
-    
-    def get_deepseek_model(self) -> str:
-        return self._settings.deepseek_model
-    
-    # Together AI methods
-    def set_together_api_key(self, api_key: str):
-        self._settings.together_api_key = api_key
-    
-    def get_together_api_key(self) -> Optional[str]:
-        return self._settings.together_api_key
-    
-    def has_together_api_key(self) -> bool:
-        return bool(self._settings.together_api_key)
-    
-    def set_together_model(self, model: str):
-        self._settings.together_model = model
-    
-    def get_together_model(self) -> str:
-        return self._settings.together_model
-    
-    # MiniMax methods
-    def set_minimax_api_key(self, api_key: str):
-        self._settings.minimax_api_key = api_key
-    
-    def get_minimax_api_key(self) -> Optional[str]:
-        return self._settings.minimax_api_key
-    
-    def has_minimax_api_key(self) -> bool:
-        return bool(self._settings.minimax_api_key)
-    
-    def set_minimax_model(self, model: str):
-        self._settings.minimax_model = model
-    
-    def get_minimax_model(self) -> str:
-        return self._settings.minimax_model
-    
-    # ZhipuAI methods
-    def set_zhipuai_api_key(self, api_key: str):
-        self._settings.zhipuai_api_key = api_key
-    
-    def get_zhipuai_api_key(self) -> Optional[str]:
-        return self._settings.zhipuai_api_key
-    
-    def has_zhipuai_api_key(self) -> bool:
-        return bool(self._settings.zhipuai_api_key)
-    
-    def set_zhipuai_model(self, model: str):
-        self._settings.zhipuai_model = model
-    
-    def get_zhipuai_model(self) -> str:
-        return self._settings.zhipuai_model
-    
-    def set_preferred_provider(self, provider: str):
-        """Set preferred provider"""
-        valid_providers = ["ollama", "google", "groq", "openai", "anthropic",
-                          "xai", "meta", "mistral", "azure", "amazon",
-                          "cohere", "deepseek", "together", "minimax", "zhipuai", "openrouter"]
-        if provider not in valid_providers:
-            raise ValueError(f"Provider must be one of: {valid_providers}")
-        self._settings.preferred_provider = provider
-        self.logger.info(f"Preferred provider set to: {provider}")
-    
-    def set_openrouter_api_key(self, api_key: str):
-        """Set OpenRouter API key"""
-        self._settings.openrouter_api_key = api_key
-        self.logger.info("OpenRouter API key updated")
-    
-    def get_openrouter_api_key(self) -> Optional[str]:
-        """Get OpenRouter API key"""
-        return self._settings.openrouter_api_key
-    
-    def has_openrouter_api_key(self) -> bool:
-        """Check if OpenRouter API key is available"""
-        return bool(self._settings.openrouter_api_key)
-    
-    def clear_openrouter_api_key(self):
-        """Clear OpenRouter API key"""
-        self._settings.openrouter_api_key = None
-        self.logger.info("OpenRouter API key cleared")
-    
-    def set_openrouter_model(self, model: str):
-        """Set OpenRouter model"""
-        # Accept any valid OpenRouter model name - validation will be done during selection
-        self._settings.openrouter_model = model
-        self.logger.info(f"OpenRouter model set to: {model}")
-    
-    def get_openrouter_model(self) -> str:
-        """Get OpenRouter model"""
-        return self._settings.openrouter_model
-    
-    def set_api_key(self, provider: str, api_key: str):
-        """Generic API key setter for any provider"""
-        provider_key_map = {
-            "google": "google_api_key",
-            "groq": "groq_api_key",
-            "openai": "openai_api_key",
-            "anthropic": "anthropic_api_key",
-            "xai": "xai_api_key",
-            "meta": "meta_api_key",
-            "mistral": "mistral_api_key",
-            "azure": "microsoft_api_key",
-            "amazon": "amazon_access_key",
-            "cohere": "cohere_api_key",
-            "deepseek": "deepseek_api_key",
-            "together": "together_api_key",
-            "minimax": "minimax_api_key",
-            "zhipuai": "zhipuai_api_key",
-            "openrouter": "openrouter_api_key"
-        }
-        
-        if provider not in provider_key_map:
-            raise ValueError(f"Unknown provider: {provider}")
-        
-        setattr(self._settings, provider_key_map[provider], api_key)
-        self.logger.info(f"{provider.title()} API key updated")
-    
-    def set_model(self, provider: str, model: str):
-        """Generic model setter for any provider"""
-        provider_model_map = {
-            "google": "google_model",
-            "groq": "groq_model",
-            "openai": "openai_model",
-            "anthropic": "anthropic_model",
-            "xai": "xai_model",
-            "meta": "meta_model",
-            "mistral": "mistral_model",
-            "azure": "microsoft_model",
-            "amazon": "amazon_model",
-            "cohere": "cohere_model",
-            "deepseek": "deepseek_model",
-            "together": "together_model",
-            "minimax": "minimax_model",
-            "zhipuai": "zhipuai_model",
-            "ollama": "ollama_model",
-            "openrouter": "openrouter_model"
-        }
-        
-        if provider not in provider_model_map:
-            raise ValueError(f"Unknown provider: {provider}")
-        
-        setattr(self._settings, provider_model_map[provider], model)
-        self.logger.info(f"{provider.title()} model set to: {model}")
-    
+        self._app = get_app_config()
+        self._secrets = get_secret_store()
+        self._registry = get_provider_registry()
+        self._model_settings = get_model_settings(self._app)
+
+    # -- low-level helpers --------------------------------------------- #
+    def _resolve_provider(self, provider: str) -> str:
+        try:
+            return self._registry.resolve(provider).value
+        except KeyError:
+            return provider.lower()
+
     def get_api_key(self, provider: str) -> Optional[str]:
-        """Generic API key getter for any provider"""
-        provider_key_map = {
-            "google": "google_api_key",
-            "groq": "groq_api_key",
-            "openai": "openai_api_key",
-            "anthropic": "anthropic_api_key",
-            "xai": "xai_api_key",
-            "meta": "meta_api_key",
-            "mistral": "mistral_api_key",
-            "azure": "microsoft_api_key",
-            "amazon": "amazon_access_key",
-            "cohere": "cohere_api_key",
-            "deepseek": "deepseek_api_key",
-            "together": "together_api_key",
-            "minimax": "minimax_api_key",
-            "zhipuai": "zhipuai_api_key",
-            "openrouter": "openrouter_api_key"
-        }
-        
-        if provider not in provider_key_map:
-            raise ValueError(f"Unknown provider: {provider}")
-        
-        return getattr(self._settings, provider_key_map[provider])
-    
+        return self._secrets.get(provider)
+
+    def set_api_key(self, provider: str, api_key: Optional[str]) -> None:
+        self._secrets.set_explicit(provider, api_key)
+        if provider == "openrouter":
+            self._app.api.openrouter_api_key = api_key or ""
+
     def get_model(self, provider: str) -> str:
-        """Generic model getter for any provider"""
-        provider_model_map = {
-            "google": "google_model",
-            "groq": "groq_model",
-            "openai": "openai_model",
-            "anthropic": "anthropic_model",
-            "xai": "xai_model",
-            "meta": "meta_model",
-            "mistral": "mistral_model",
-            "azure": "microsoft_model",
-            "amazon": "amazon_model",
-            "cohere": "cohere_model",
-            "deepseek": "deepseek_model",
-            "together": "together_model",
-            "minimax": "minimax_model",
-            "zhipuai": "zhipuai_model",
-            "ollama": "ollama_model",
-            "openrouter": "openrouter_model"
-        }
-        
-        if provider not in provider_model_map:
-            raise ValueError(f"Unknown provider: {provider}")
-        
-        return getattr(self._settings, provider_model_map[provider])
+        return self._model_settings.default_model_for(provider) or ""
+
+    def set_model(self, provider: str, model: str) -> None:
+        self._app.api.models[provider] = model
+
+    def get_preferred_provider(self) -> str:
+        return self._app.preferred_provider_str
+
+    def set_preferred_provider(self, provider: str) -> None:
+        self._app.api.preferred_provider = ProviderName(self._resolve_provider(provider))
+
+    # -- ollama ------------------------------------------------------- #
+    def get_ollama_model(self) -> str:
+        return self._app.api.local_model or "llama3.2:3b"
+
+    def set_ollama_model(self, model: str) -> None:
+        self._app.api.local_model = model
+        self.logger.info(f"Ollama model set to: {model}")
+
+    # -- snapshot ----------------------------------------------------- #
+    def get_settings(self) -> APISettings:
+        return APISettings(
+            google_api_key=self.get_api_key("google"),
+            groq_api_key=self.get_api_key("groq"),
+            openai_api_key=self.get_api_key("openai"),
+            anthropic_api_key=self.get_api_key("anthropic"),
+            xai_api_key=self.get_api_key("xai"),
+            meta_api_key=self.get_api_key("meta"),
+            mistral_api_key=self.get_api_key("mistral"),
+            microsoft_api_key=self.get_api_key("microsoft"),
+            amazon_access_key=self.get_api_key("amazon"),
+            amazon_secret_key=self.get_api_key("amazon"),
+            cohere_api_key=self.get_api_key("cohere"),
+            deepseek_api_key=self.get_api_key("deepseek"),
+            together_api_key=self.get_api_key("together"),
+            minimax_api_key=self.get_api_key("minimax"),
+            zhipuai_api_key=self.get_api_key("zhipuai"),
+            openrouter_api_key=self.get_api_key("openrouter"),
+            preferred_provider=self.get_preferred_provider(),
+            google_model=self.get_model("google"),
+            groq_model=self.get_model("groq"),
+            openai_model=self.get_model("openai"),
+            anthropic_model=self.get_model("anthropic"),
+            xai_model=self.get_model("xai"),
+            meta_model=self.get_model("meta"),
+            mistral_model=self.get_model("mistral"),
+            microsoft_model=self.get_model("microsoft"),
+            amazon_model=self.get_model("amazon"),
+            cohere_model=self.get_model("cohere"),
+            deepseek_model=self.get_model("deepseek"),
+            together_model=self.get_model("together"),
+            minimax_model=self.get_model("minimax"),
+            zhipuai_model=self.get_model("zhipuai"),
+            openrouter_model=self.get_model("openrouter"),
+            ollama_model=self.get_ollama_model(),
+        )
+
+    def get_available_providers(self) -> List[str]:
+        return self._registry.names()
+
+
+# --------------------------------------------------------------------------- #
+# Generate the legacy per-provider accessor methods (DRY).                     #
+# The core expects e.g. ``get_google_api_key()``, ``set_groq_model(m)``.     #
+# --------------------------------------------------------------------------- #
+
+def _make_get_key(provider: str):
+    def _get(self) -> Optional[str]:
+        return self.get_api_key(provider)
+    _get.__name__ = f"get_{provider}_api_key"
+    return _get
+
+
+def _make_set_key(provider: str):
+    def _set(self, api_key: Optional[str]) -> None:
+        self.set_api_key(provider, api_key)
+        self.logger.info(f"{provider.title()} API key updated")
+    _set.__name__ = f"set_{provider}_api_key"
+    return _set
+
+
+def _make_get_model(provider: str):
+    def _get(self) -> str:
+        return self.get_model(provider)
+    _get.__name__ = f"get_{provider}_model"
+    return _get
+
+
+def _make_set_model(provider: str):
+    def _set(self, model: str) -> None:
+        self.set_model(provider, model)
+        self.logger.info(f"{provider.title()} model set to: {model}")
+    _set.__name__ = f"set_{provider}_model"
+    return _set
+
+
+for _p in (
+    "google", "groq", "openai", "anthropic", "xai", "meta", "mistral",
+    "microsoft", "amazon", "cohere", "deepseek", "together", "minimax",
+    "zhipuai", "openrouter",
+):
+    setattr(SettingsManager, f"get_{_p}_api_key", _make_get_key(_p))
+    setattr(SettingsManager, f"set_{_p}_api_key", _make_set_key(_p))
+    setattr(SettingsManager, f"get_{_p}_model", _make_get_model(_p))
+    setattr(SettingsManager, f"set_{_p}_model", _make_set_model(_p))
+
+
+def _get_amazon_access_key(self) -> Optional[str]:
+    return self.get_api_key("amazon")
+
+
+SettingsManager.get_amazon_access_key = _get_amazon_access_key
 
 
 # Global settings manager instance
-_settings_manager: Optional[SettingsManager] = None
+_settings_manager = None
 
 
-def get_settings_manager() -> SettingsManager:
-    """Get global settings manager instance"""
+def get_settings_manager():
+    """Get global settings manager instance (singleton)."""
     global _settings_manager
-    
     if _settings_manager is None:
         _settings_manager = SettingsManager()
-    
     return _settings_manager

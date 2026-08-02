@@ -4,12 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vexis-cli"
-version = "2.1.0"
-description = "AI command-line agent for terminal automation and task execution"
+version = "3.0.0"
+description = "Advanced 5-Phase AI-powered terminal automation system"
 readme = "README.md"
-license = "MIT"
+license = {file = "LICENSE"}
+requires-python = ">=3.8"
 authors = [
-    {name = "AInohogosya"}
+    {name = "VEXIS Project"}
+]
+maintainers = [
+    {name = "VEXIS Project"}
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -22,11 +26,19 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Automation",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Terminals",
+    "Environment :: Console",
+    "Natural Language :: English",
 ]
-keywords = ["ai", "automation", "cli", "terminal", "command-line"]
-requires-python = ">=3.8"
+keywords = [
+    "ai", "automation", "cli", "terminal", "command-line",
+    "natural-language", "agent", "llm", "multi-provider",
+    "ollama", "openai", "anthropic", "groq", "gemini",
+]
 dependencies = [
     "Pillow>=10.0.0",
     "requests>=2.31.0",
@@ -40,6 +52,11 @@ dependencies = [
     "openai>=1.0.0",
     "groq>=0.5.0",
     "python-telegram-bot>=21.0.0",
+    "python-dotenv>=1.0.0",
+    # -- New peripheral-system dependencies (config / model settings / CLI) -- #
+    "pydantic>=2.0,<3.0",          # validated config + model settings
+    "typer>=0.12,<0.13",            # modern CLI framework
+    "click>=8.1,<8.2",             # pinned for Typer 0.12 compatibility
     "pyautogui>=0.9.54; sys_platform=='darwin'",
     "pyobjc-framework-Cocoa>=9.0; sys_platform=='darwin'",
     "pywin32>=306; sys_platform=='win32'",
@@ -54,6 +71,7 @@ dev = [
     "black>=23.0.0",
     "mypy>=1.0.0",
     "flake8>=6.0.0",
+    "isort>=5.0.0",
 ]
 cloud = [
     "anthropic>=0.25.0",
@@ -64,6 +82,31 @@ cloud = [
 ]
 all = [
     "vexis-cli[dev,cloud]",
+]
+
+[project.scripts]
+# Primary, modern Typer-based CLI (drives the core FivePhaseAIAgent).
+vexis = "ai_agent.user_interface.cli:app"
+# Legacy argparse entry point (kept for backward compatibility).
+vexis-legacy = "ai_agent.user_interface.five_phase_app:main"
+
+[project.urls]
+Homepage = "https://github.com/AInohogosya/VEXIS-CLI-3"
+Repository = "https://github.com/AInohogosya/VEXIS-CLI-3"
+"Bug Reports" = "https://github.com/AInohogosya/VEXIS-CLI-3/issues"
+Discussions = "https://github.com/AInohogosya/VEXIS-CLI-3/discussions"
+Changelog = "https://github.com/AInohogosya/VEXIS-CLI-3/blob/main/docs/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ai_agent = [
+    "config/*.yaml",
+    "config/*.json",
+    "templates/*.txt",
+    "scripts/*.sh",
+    "scripts/*.ps1",
 ]
 
 [tool.pytest.ini_options]
@@ -104,24 +147,16 @@ exclude_lines = [
     "if TYPE_CHECKING:",
 ]
 
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
 
-[project.scripts]
-"vexis-cli" = "ai_agent.user_interface.five_phase_app:main"
-"vexis-cli-enhanced" = "ai_agent.user_interface.five_phase_app:main"
+[tool.isort]
+profile = "black"
+line_length = 100
 
-[project.urls]
-Homepage = "https://github.com/vexis-project/VEXIS-CLI"
-Repository = "https://github.com/vexis-project/VEXIS-CLI"
-"Bug Reports" = "https://github.com/vexis-project/VEXIS-CLI/issues"
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-ai_agent = [
-    "config/*.yaml",
-    "config/*.json", 
-    "templates/*.txt",
-    "scripts/*.sh",
-    "scripts/*.ps1",
-]
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false

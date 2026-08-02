@@ -1,826 +1,391 @@
 # API Reference
 
-## Overview
+This reference describes the public interfaces that matter for users extending or embedding VEXIS-CLI. For an exhaustive generated list of every Python symbol, see [MODULE_INVENTORY.md](./MODULE_INVENTORY.md).
 
-This comprehensive API reference covers all public interfaces, classes, methods, and data structures available in VEXIS-CLI.
+## Core Pipeline API
 
-## Core Components
+### `PipelinePhase`
 
-### TwoPhaseEngine
+Enum in `src/ai_agent/core_processing/five_phase_engine.py`.
 
-**Location**: `src/ai_agent/core_processing/two_phase_engine.py`
+Values:
 
-The main orchestration engine that coordinates the two-phase execution process.
+- `PHASE0_CRITIC_OPTIMIZER`
+- `ACTION_TYPE_SELECTION`
+- `PHASE1_INITIAL_PLANNING`
+- `PHASE2_ACTION_GENERATION`
+- `PHASE3_EXECUTION`
+- `PHASE4_DYNAMIC_UPDATE`
+- `PHASE5_VERIFICATION`
+- `PHASE6_SUMMARIZATION`
+- `BOT_USER_REVIEW`
+- `COMPLETED`
+- `FAILED`
 
-#### Class Definition
+### `ActionType`
 
-```python
-class TwoPhaseEngine:
-    """Two-phase execution engine for processing natural language instructions."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize the two-phase engine.
-        
-        Args:
-            config: Configuration dictionary containing engine settings
-        """
-```
+Enum in `src/ai_agent/core_processing/five_phase_engine.py`.
 
-#### Methods
+Values:
 
-##### `process_instruction`
+- `RUN_COMMAND`
+- `WRITE_FILE`
+- `READ_FILE`
+- `KEEP_TEXT`
+- `KEEP_FILE`
+- `ANSWER_DIRECTLY`
+- `ASK_USER`
 
-```python
-async def process_instruction(
-    self, 
-    instruction: str,
-    context: Optional[Dict[str, Any]] = None
-) -> CommandResult:
-    """Process a natural language instruction through two phases.
-    
-    Args:
-        instruction: Natural language instruction to process
-        context: Optional context information
-        
-    Returns:
-        CommandResult: Result of instruction processing
-        
-    Raises:
-        ValidationError: If instruction is invalid
-        ProcessingError: If processing fails
-    """
-```
+### `PipelineContext`
 
-##### `plan_commands`
+Dataclass carrying task execution state.
 
-```python
-async def plan_commands(
-    self, 
-    instruction: str
-) -> List[Command]:
-    """Phase 1: Plan commands from natural language.
-    
-    Args:
-        instruction: Natural language instruction
-        
-    Returns:
-        List[Command]: Planned command sequence
-        
-    Raises:
-        PlanningError: If command planning fails
-    """
-```
+Important fields:
 
-##### `execute_commands`
+| Field | Meaning |
+| --- | --- |
+| `user_prompt` | Original user instruction. |
+| `action_type` | Classified action type from Phase 1. |
+| `ask_user_question` | Question for user when action_type is `ask_user`. |
+| `phase1_output` | Raw planning output. |
+| `step_list` | Remaining actionable steps. |
+| `tasks` | DAG-based task list with dependencies. |
+| `completed_steps` | Steps already executed. |
+| `progress_summaries` | Phase 4/5 progress messages. |
+| `extracted_commands` | Current generated command block/text. |
+| `terminal_log` | Rendered terminal history. |
+| `last_execution_result` | Structured result from command batch execution. |
+| `final_summary` | Phase 6 summary. |
+| `current_phase` | Current `PipelinePhase`. |
+| `iteration_count`, `max_iterations` | Loop control. |
+| `start_time`, `end_time` | Timing. |
+| `error` | Error text if failed. |
+| `conversation_history` | Telegram/conversation context. |
+| `telegram_mode`, `telegram_user_id` | Telegram routing state. |
+| `cancel_event`, `cancelled` | Cancellation state. |
+| `compressed_context` | Condensed execution history. |
+| `kept_text_records`, `kept_file_records` | Preserved memory records. |
+| `plan_graph` | Predictive Subgoal Graph from Phase 0. |
+| `critic_report` | Critic & Optimizer analysis results. |
+| `tool_policy_engine` | Tool safety/determinism/cost scoring. |
+| `provenance_tracker` | Metadata on all writes and commands. |
+| `repository_index` | Multi-layer code index. |
+| `bot_user_review_output`, `bot_user_instructions` | Bot User feedback. |
 
-```python
-async def execute_commands(
-    self, 
-    commands: List[Command]
-) -> ExecutionResult:
-    """Phase 2: Execute planned commands.
-    
-    Args:
-        commands: List of commands to execute
-        
-    Returns:
-        ExecutionResult: Results of command execution
-        
-    Raises:
-        ExecutionError: If command execution fails
-    """
-```
+### `FivePhaseEngine`
 
-#### Usage Example
+Main engine class.
+
+Constructor:
 
 ```python
-from ai_agent.core_processing.two_phase_engine import TwoPhaseEngine
-from ai_agent.utils.config import load_config
-
-# Initialize engine
-config = load_config()
-engine = TwoPhaseEngine(config)
-
-# Process instruction
-result = await engine.process_instruction("list files in current directory")
-
-if result.success:
-    print(f"Commands executed: {len(result.commands)}")
-    print(f"Output: {result.output}")
-else:
-    print(f"Error: {result.error}")
+FivePhaseEngine(provider=None, model=None, config=None, telegram_bot=None)
 ```
 
-### ModelRunner
+Key methods:
 
-**Location**: `src/ai_agent/external_integration/model_runner.py`
+| Method | Purpose |
+| --- | --- |
+| `execute_instruction(user_prompt, conversation_history=None, telegram_mode=False, telegram_user_id=None, cancel_event=None)` | Run a full instruction through the phase pipeline and return `PipelineContext`. |
+| `request_cancel()` | Cancel the active pipeline and foreground command. |
+| `get_partial_context(conversation_history)` | Save partial progress from a cancelled task into conversation history. |
+| `cleanup()` | Release resources and perform cleanup. |
 
-Unified AI provider abstraction supporting 13+ providers: Ollama (local), Google Gemini, OpenAI, Anthropic, xAI, Meta, Mistral AI, Microsoft Azure, Amazon Bedrock, Cohere, DeepSeek, Groq, and Together AI.
+Internal phase methods include `_run_phase0`, `_run_phase1`, `_run_phase2`, `_run_phase3`, `_run_phase4`, `_run_phase5`, `_run_phase6`, and `_run_bot_user_review`. They are implementation details but are useful landmarks when debugging.
 
-#### Class Definition
+## Model Runner API
+
+### `TaskType`
+
+Enum in `model_runner.py`:
+
+- `PHASE0_CRITIC_OPTIMIZER`
+- `PHASE1_INITIAL_PLANNING`
+- `PHASE2_ACTION_GENERATION`
+- `PHASE4_DYNAMIC_UPDATE`
+- `PHASE5_VERIFICATION`
+- `PHASE6_SUMMARIZATION`
+- `BOT_USER_REVIEW`
+
+Phase 3 is absent because execution is local and does not require an LLM call.
+
+### `ModelRequest`
+
+Dataclass fields:
+
+| Field | Meaning |
+| --- | --- |
+| `task_type` | A `TaskType`. |
+| `prompt` | Prompt or task content. |
+| `image_data` | Optional image bytes. |
+| `image_format` | Image format string, default `PNG`. |
+| `context` | Template variables and phase context. |
+| `parameters` | Provider-specific generation parameters. |
+| `max_tokens` | Maximum output tokens; default 5000. |
+| `temperature` | Generation temperature; default 1.0. |
+| `timeout` | Request timeout; validated from 1 to 300 seconds. |
+
+### `ModelResponse`
+
+Dataclass fields:
+
+| Field | Meaning |
+| --- | --- |
+| `success` | Whether the provider call and output validation succeeded. |
+| `content` | Model output text. |
+| `task_type` | Task type requested. |
+| `model` | Model used. |
+| `provider` | Provider used. |
+| `tokens_used` | Optional token usage. |
+| `cost` | Optional cost estimate. |
+| `latency` | Request duration. |
+| `error` | Error text when failed. |
+| `metadata` | Provider-specific metadata. |
+
+### `PromptTemplate`
+
+Loads and returns phase-specific prompt templates. The templates encode the core VEXIS workflow, including output formats such as `step_list [...]`, `Summary_of_Progress [...]`, `original_command [...]`, and `action_type [...]`.
+
+### `ModelRunner`
+
+Constructor:
 
 ```python
-class ModelRunner:
-    """Unified AI model runner supporting multiple providers."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize model runner with configuration.
-        
-        Args:
-            config: Configuration dictionary with provider settings
-        """
+ModelRunner(provider=None, model=None, config=None, auto_install_sdks=False)
 ```
 
-#### Methods
+Key methods:
 
-##### `generate_response`
+| Method | Purpose |
+| --- | --- |
+| `run_model(request)` | Validate, format, call provider, validate output, and return `ModelResponse`. |
+| `compress_context_data(context_data)` | Compress accumulated context data to prevent unbounded growth. |
+| `install_missing_sdks(providers=None, interactive=True)` | Install missing SDKs through the provider client/dependency layer. |
+| `show_sdk_status(providers=None)` | Print SDK status. |
+| `get_model_runner(provider=None, model=None)` | Convenience factory function. |
+
+## Plan Graph API
+
+### `PlanGraph`
+
+Dataclass in `plan_graph.py` representing a Predictive Subgoal Graph:
+
+- `goal_description` — The overall task goal.
+- `nodes` — List of `SubgoalNode` objects.
+- `risk_level` — Overall risk assessment.
+
+### `SubgoalNode`
+
+Dataclass for individual subgoals:
+
+- `id` — Unique node identifier.
+- `description` — What this subgoal accomplishes.
+- `risk_level` — `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`.
+- `status` — `PENDING`, `EXECUTABLE`, `RUNNING`, `COMPLETED`, `FAILED`, or `BLOCKED`.
+- `dependencies` — List of node IDs that must complete first.
+
+### `PlanCritic`
+
+Analyzes a `PlanGraph` for:
+- Ambiguity in goal descriptions.
+- Missing verification steps.
+- High-risk operations without safeguards.
+- Dependency issues.
+
+### `PlanOptimizer`
+
+Optimizes a `PlanGraph` by:
+- Reordering steps for lower risk.
+- Combining redundant steps.
+- Adding verification checkpoints.
+- Setting low-confidence nodes for dry-run execution.
+
+## Tool Policy API
+
+### `ToolPolicyEngine`
+
+Scores commands on safety, determinism, and cost:
+
+- `score_command(command)` — Returns a `ToolScore` with composite, safety, determinism, and cost scores.
+- `get_safe_alternatives(command)` — Returns safer alternative commands.
+
+### `ToolScore`
+
+Dataclass with:
+- `composite` — Overall score (0.0 to 1.0).
+- `safety` — Safety score.
+- `determinism` — Determinism score.
+- `cost` — Cost score.
+- `reason` — Human-readable explanation.
+
+## Provenance API
+
+### `ProvenanceTracker`
+
+Maintains an audit trail of all operations:
+
+- `start_trace(phase, model, provider)` — Start a new trace, returns trace ID.
+- `record(trace_id, phase, confidence, ...)` — Record an event in the trace.
+- `annotate_command(command, trace_id)` — Add provenance metadata to a command.
+
+## Repository Index API
+
+### `RepositoryIndex`
+
+Multi-layer code index:
+
+- `index_symbols(file_path)` — Index symbol definitions from a file.
+- `index_tests(file_path)` — Index test-to-code mappings.
+- `delta_refresh(changed_files)` — Incrementally update index after file writes.
+- `search_symbols(query)` — Search for symbols by name or type.
+
+## Unified LLM API Package
+
+### `ProviderType`
+
+Enum in `api/base.py`. Provider values include Google, OpenAI, Anthropic, Ollama, Groq, xAI, Meta, Mistral, Microsoft, Amazon, Cohere, DeepSeek, Together, MiniMax, ZhipuAI, and OpenRouter.
+
+### `ResponseFormat`
+
+Enum for response formats such as text, JSON, and Markdown.
+
+### `GenerationConfig`
+
+Dataclass normalizing provider generation parameters:
+
+- `max_tokens`
+- `temperature`
+- `top_p`
+- `stop_sequences`
+- `response_format`
+- `stream`
+- provider-specific extras
+
+### `LLMResponse`
+
+Dataclass normalizing provider responses:
+
+- `content`
+- `model`
+- `provider`
+- token usage fields
+- `finish_reason`
+- `cost`
+- `latency`
+- `raw_response`
+
+### `ModelInfo`
+
+Dataclass for model metadata:
+
+- model ID and display name
+- provider
+- context window
+- max output tokens
+- supported capabilities
+- cost details
+
+### `BaseLLM`
+
+Abstract provider interface. Subclasses implement:
+
+| Method | Purpose |
+| --- | --- |
+| `provider_type` | Return provider enum. |
+| `default_model` | Return default model ID. |
+| `_initialize_client` | Initialize SDK/client. |
+| `generate(prompt, config=None, **kwargs)` | Generate one complete response. |
+| `generate_stream(prompt, config=None, **kwargs)` | Stream response chunks where supported. |
+| `generate_async(...)` | Async generation wrapper/implementation. |
+| `generate_stream_async(...)` | Async streaming wrapper/implementation. |
+| `list_models()` | Return provider model list. |
+| `get_model_info(model_id)` | Return metadata for a model. |
+| `count_tokens(text, model=None)` | Count or estimate tokens. |
+| `is_available()` | Return whether SDK/credentials are available. |
+
+### `LLMFactory`
+
+Factory and registry for `BaseLLM` subclasses.
 
 ```python
-async def generate_response(
-    self,
-    task_type: TaskType,
-    prompt: str,
-    provider: Optional[str] = None,
-    **kwargs
-) -> ModelResponse:
-    """Generate response from AI model.
-    
-    Args:
-        task_type: Type of task (task_generation or command_parsing)
-        prompt: Prompt to send to model
-        provider: Specific provider to use (ollama, groq, google, openai, anthropic, xai, meta, mistral, microsoft, amazon, cohere, deepseek, together)
-        **kwargs: Additional parameters for the model
-        
-    Returns:
-        ModelResponse: Model's response with metadata
-        
-    Raises:
-        ProviderError: If provider fails
-        ModelError: If model generation fails
-    """
+client = LLMFactory.create(ProviderType.GOOGLE, api_key="...")
+response = client.generate("Hello")
 ```
 
-##### `is_provider_available`
+Convenience functions in `api/__init__.py`:
 
 ```python
-def is_provider_available(self, provider: str) -> bool:
-    """Check if a specific provider is available.
-    
-    Args:
-        provider: Provider name (ollama, groq, google, openai, anthropic, xai, meta, mistral, microsoft, amazon, cohere, deepseek, together)
-        
-    Returns:
-        bool: True if provider is available
-    """
+create_client(provider: str, api_key: str, **kwargs)
+get_available_providers()
 ```
 
-##### `get_available_models`
-
-```python
-def get_available_models(self, provider: str) -> List[str]:
-    """Get list of available models for a provider.
-    
-    Args:
-        provider: Provider name
-        
-    Returns:
-        List[str]: List of available model names
-    """
-```
-
-#### Usage Example
-
-```python
-from ai_agent.external_integration.model_runner import ModelRunner
-from ai_agent.external_integration.model_runner import TaskType
-
-# Initialize runner
-runner = ModelRunner(config)
-
-# Generate response
-response = await runner.generate_response(
-    task_type=TaskType.TASK_GENERATION,
-    prompt="Generate a command to list files",
-    provider="groq"  # or any supported provider
-)
-
-if response.success:
-    print(f"Response: {response.content}")
-    print(f"Model: {response.model}")
-    print(f"Tokens used: {response.tokens_used}")
-```
-
-### CommandParser
-
-**Location**: `src/ai_agent/core_processing/command_parser.py`
-
-Converts natural language instructions into executable CLI commands.
-
-#### Class Definition
-
-```python
-class CommandParser:
-    """Parser for converting natural language to CLI commands."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize command parser.
-        
-        Args:
-            config: Configuration dictionary
-        """
-```
-
-#### Methods
-
-##### `parse_instruction`
-
-```python
-def parse_instruction(
-    self,
-    instruction: str,
-    context: Optional[Dict[str, Any]] = None
-) -> ParseResult:
-    """Parse natural language instruction into commands.
-    
-    Args:
-        instruction: Natural language instruction
-        context: Optional context information
-        
-    Returns:
-        ParseResult: Parsed commands and metadata
-        
-    Raises:
-        ParseError: If parsing fails
-        ValidationError: If instruction is invalid
-    """
-```
-
-##### `validate_command`
-
-```python
-def validate_command(self, command: Command) -> ValidationResult:
-    """Validate a command for safety and correctness.
-    
-    Args:
-        command: Command to validate
-        
-    Returns:
-        ValidationResult: Validation result with details
-    """
-```
-
-##### `sanitize_command`
-
-```python
-def sanitize_command(self, command: str) -> str:
-    """Sanitize command string for safe execution.
-    
-    Args:
-        command: Raw command string
-        
-    Returns:
-        str: Sanitized command string
-    """
-```
-
-#### Usage Example
-
-```python
-from ai_agent.core_processing.command_parser import CommandParser
-
-# Initialize parser
-parser = CommandParser(config)
-
-# Parse instruction
-result = parser.parse_instruction("create a file named test.txt")
-
-if result.success:
-    for command in result.commands:
-        print(f"Command: {command.executable}")
-        print(f"Args: {command.arguments}")
-        print(f"Safe: {command.is_safe}")
-```
-
-## Data Structures
-
-### Command
-
-**Location**: `src/ai_agent/core_processing/command_parser.py`
-
-```python
-@dataclass
-class Command:
-    """Represents a single executable command."""
-    
-    executable: str                    # Command executable
-    arguments: List[str]               # Command arguments
-    working_directory: Optional[str]   # Working directory
-    environment: Dict[str, str]       # Environment variables
-    timeout: Optional[int]             # Timeout in seconds
-    is_safe: bool                      # Safety flag
-    risk_level: str                    # Risk level (low/medium/high)
-    
-    def to_string(self) -> str:
-        """Convert command to string representation."""
-        pass
-    
-    def validate(self) -> bool:
-        """Validate command structure."""
-        pass
-```
-
-### CommandResult
-
-**Location**: `src/ai_agent/core_processing/two_phase_engine.py`
-
-```python
-@dataclass
-class CommandResult:
-    """Result of command processing."""
-    
-    success: bool                      # Success flag
-    commands: List[Command]            # Generated commands
-    output: Optional[str]              # Output text
-    error: Optional[str]               # Error message
-    execution_time: float              # Execution time in seconds
-    metadata: Dict[str, Any]          # Additional metadata
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert result to dictionary."""
-        pass
-```
-
-### ModelResponse
-
-**Location**: `src/ai_agent/external_integration/model_runner.py`
-
-```python
-@dataclass
-class ModelResponse:
-    """Response from AI model."""
-    
-    success: bool                      # Success flag
-    content: str                       # Response content
-    task_type: TaskType               # Type of task
-    model: str                        # Model name
-    provider: str                     # Provider name
-    tokens_used: Optional[int]         # Tokens used
-    cost: Optional[float]             # Cost in USD
-    latency: Optional[float]          # Response latency
-    error: Optional[str]              # Error message
-    metadata: Optional[Dict[str, Any]]  # Additional metadata
-```
-
-### ValidationError
-
-**Location**: `src/ai_agent/utils/exceptions.py`
-
-```python
-class ValidationError(Exception):
-    """Raised when input validation fails."""
-    
-    def __init__(
-        self, 
-        message: str, 
-        field: Optional[str] = None,
-        value: Optional[Any] = None
-    ):
-        """Initialize validation error.
-        
-        Args:
-            message: Error message
-            field: Field that failed validation
-            value: Value that failed validation
-        """
-        super().__init__(message)
-        self.field = field
-        self.value = value
-```
-
-## Utilities
-
-### Configuration
-
-**Location**: `src/ai_agent/utils/config.py`
-
-#### `load_config`
-
-```python
-def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
-    """Load configuration from file.
-    
-    Args:
-        config_path: Path to configuration file
-        
-    Returns:
-        Dict[str, Any]: Loaded configuration
-        
-    Raises:
-        ConfigError: If configuration loading fails
-    """
-```
-
-#### `validate_config`
-
-```python
-def validate_config(config: Dict[str, Any]) -> ValidationResult:
-    """Validate configuration dictionary.
-    
-    Args:
-        config: Configuration to validate
-        
-    Returns:
-        ValidationResult: Validation result
-    """
-```
-
-### Logging
-
-**Location**: `src/ai_agent/utils/logger.py`
-
-#### `get_logger`
-
-```python
-def get_logger(name: str) -> logging.Logger:
-    """Get configured logger instance.
-    
-    Args:
-        name: Logger name
-        
-    Returns:
-        logging.Logger: Configured logger
-    """
-```
-
-#### `setup_logging`
-
-```python
-def setup_logging(config: Dict[str, Any]) -> None:
-    """Set up logging configuration.
-    
-    Args:
-        config: Logging configuration
-    """
-```
-
-### Error Handler
-
-**Location**: `src/ai_agent/utils/ollama_error_handler.py`
-
-#### `handle_ollama_error`
-
-```python
-def handle_ollama_error(
-    error_message: str,
-    context: Optional[Dict[str, Any]] = None,
-    display_to_user: bool = True
-) -> Tuple[Optional[ErrorInfo], bool]:
-    """Handle Ollama-related errors with user guidance.
-    
-    Args:
-        error_message: Error message to handle
-        context: Additional context information
-        display_to_user: Whether to display guidance to user
-        
-    Returns:
-        Tuple[Optional[ErrorInfo], bool]: Error info and whether to retry
-    """
-```
-
-## User Interface
-
-### Yellow Selection System
-
-**Location**: `src/ai_agent/user_interface/yellow_selection/`
-
-#### `get_yellow_menu`
-
-```python
-def get_yellow_menu(
-    title: str,
-    description: Optional[str] = None
-) -> YellowMenu:
-    """Get yellow-themed menu instance.
-    
-    Args:
-        title: Menu title
-        description: Optional description
-        
-    Returns:
-        YellowMenu: Menu instance
-    """
-```
-
-#### `get_yellow_selector`
-
-```python
-def get_yellow_selector() -> YellowSelector:
-    """Get yellow-themed selector instance.
-    
-    Returns:
-        YellowSelector: Selector instance
-    """
-```
-
-### Main Application
-
-**Location**: `src/ai_agent/user_interface/main_app.py`
-
-#### `main`
-
-```python
-def main() -> None:
-    """Main application entry point."""
-    pass
-```
-
-#### `process_instruction_cli`
-
-```python
-def process_instruction_cli(
-    instruction: str,
-    debug: bool = False,
-    no_prompt: bool = False,
-    provider: Optional[str] = None
-) -> None:
-    """Process instruction from command line.
-    
-    Args:
-        instruction: Natural language instruction
-        debug: Enable debug mode
-        no_prompt: Skip provider selection prompts
-        provider: Force specific provider
-    """
-```
-
-## Integration Examples
-
-### Basic Usage
-
-```python
-import asyncio
-from ai_agent.core_processing.two_phase_engine import TwoPhaseEngine
-from ai_agent.utils.config import load_config
-
-async def main():
-    # Load configuration
-    config = load_config()
-    
-    # Initialize engine
-    engine = TwoPhaseEngine(config)
-    
-    # Process instruction
-    result = await engine.process_instruction(
-        "list files in current directory"
-    )
-    
-    if result.success:
-        print("Success!")
-        print(f"Commands executed: {len(result.commands)}")
-        print(f"Output: {result.output}")
-    else:
-        print(f"Error: {result.error}")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### Custom Provider
-
-```python
-from ai_agent.external_integration.model_runner import AIProvider, ModelResponse
-
-class CustomProvider(AIProvider):
-    """Custom AI provider implementation."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        self.client = self._initialize_client()
-    
-    async def generate_response(
-        self, 
-        prompt: str, 
-        task_type: str,
-        **kwargs
-    ) -> ModelResponse:
-        """Generate response using custom API."""
-        try:
-            response = await self.client.generate(prompt=prompt)
-            
-            return ModelResponse(
-                success=True,
-                content=response["text"],
-                task_type=TaskType(task_type),
-                model=self.config.get("model", "custom"),
-                provider="custom",
-                tokens_used=response.get("tokens"),
-                latency=response.get("latency")
-            )
-            
-        except Exception as e:
-            return ModelResponse(
-                success=False,
-                content="",
-                task_type=TaskType(task_type),
-                model="",
-                provider="custom",
-                error=str(e)
-            )
-    
-    def is_available(self) -> bool:
-        """Check if provider is available."""
-        return self.client.health_check()
-    
-    def get_model_info(self) -> Dict[str, Any]:
-        """Get provider model information."""
-        return {
-            "name": "Custom Provider",
-            "models": self.client.list_models(),
-            "capabilities": ["text-generation", "code-generation"]
-        }
-```
-
-### Error Handling
-
-```python
-from ai_agent.utils.ollama_error_handler import handle_ollama_error
-from ai_agent.utils.exceptions import ValidationError, ProviderError
-
-async def safe_instruction_processing(instruction: str):
-    """Process instruction with comprehensive error handling."""
-    
-    try:
-        # Validate instruction
-        if not instruction.strip():
-            raise ValidationError("Instruction cannot be empty")
-        
-        # Process with engine
-        engine = TwoPhaseEngine(config)
-        result = await engine.process_instruction(instruction)
-        
-        return result
-        
-    except ValidationError as e:
-        print(f"Validation Error: {e}")
-        return None
-        
-    except ProviderError as e:
-        # Handle with enhanced error handler
-        error_info, should_retry = handle_ollama_error(
-            str(e),
-            context={"instruction": instruction}
-        )
-        
-        if should_retry:
-            print("Retrying with alternative provider...")
-            return await safe_instruction_processing(instruction)
-        else:
-            print(f"Provider Error: {error_info.message}")
-            return None
-            
-    except Exception as e:
-        print(f"Unexpected Error: {e}")
-        return None
-```
-
-### Configuration Management
-
-```python
-from ai_agent.utils.config import load_config, validate_config
-
-def setup_environment(config_path: str = "config.yaml"):
-    """Set up environment with configuration validation."""
-    
-    try:
-        # Load configuration
-        config = load_config(config_path)
-        
-        # Validate configuration
-        validation_result = validate_config(config)
-        
-        if not validation_result.is_valid:
-            print("Configuration validation failed:")
-            for error in validation_result.errors:
-                print(f"  - {error}")
-            return None
-        
-        # Set up logging
-        from ai_agent.utils.logger import setup_logging
-        setup_logging(config.get("logging", {}))
-        
-        return config
-        
-    except Exception as e:
-        print(f"Configuration setup failed: {e}")
-        return None
-```
-
-## Testing API
-
-### Test Utilities
-
-**Location**: `tests/utils/`
-
-#### `MockModelRunner`
-
-```python
-class MockModelRunner:
-    """Mock model runner for testing."""
-    
-    def __init__(self, responses: Dict[str, str]):
-        self.responses = responses
-    
-    async def generate_response(
-        self, 
-        task_type: TaskType,
-        prompt: str,
-        **kwargs
-    ) -> ModelResponse:
-        """Generate mock response."""
-        
-        response_text = self.responses.get(
-            prompt, 
-            "Mock response for: " + prompt
-        )
-        
-        return ModelResponse(
-            success=True,
-            content=response_text,
-            task_type=task_type,
-            model="mock-model",
-            provider="mock",
-            tokens_used=len(response_text.split()),
-            latency=0.1
-        )
-```
-
-#### `TestFixtures`
-
-```python
-@pytest.fixture
-def sample_config():
-    """Sample configuration for testing."""
-    return {
-        "api": {
-            "preferred_provider": "ollama",
-            "local_endpoint": "http://localhost:11434"
-        },
-        "execution": {
-            "safety_mode": True,
-            "dry_run": False
-        }
-    }
-
-@pytest.fixture
-def mock_ollama_response():
-    """Mock Ollama API response."""
-    return {
-        "response": "ls -la",
-        "done": True,
-        "model": "gemini-3-flash-preview"
-    }
-```
-
-## Migration Guide
-
-### Version Compatibility
-
-This API reference covers VEXIS-CLI version 2.1.0.
-
-#### Breaking Changes from 0.x
-
-- `TwoPhaseEngine.process_instruction` is now async
-- `ModelRunner` requires explicit provider specification
-- Configuration format changed to YAML
-- Error handling unified under `ErrorInfo` structure
-
-#### Migration Steps
-
-1. Update imports:
-   ```python
-   # Old
-   from ai_agent.engine import TwoPhaseEngine
-   
-   # New
-   from ai_agent.core_processing.two_phase_engine import TwoPhaseEngine
-   ```
-
-2. Make async calls:
-   ```python
-   # Old
-   result = engine.process_instruction("test")
-   
-   # New
-   result = await engine.process_instruction("test")
-   ```
-
-3. Update configuration:
-   ```python
-   # Old JSON format
-   config = {"preferred_provider": "ollama"}
-   
-   # New YAML format
-   config = load_config("config.yaml")
-   ```
-
-This API reference provides comprehensive documentation for all public interfaces in VEXIS-CLI-2.2, enabling developers to integrate, extend, and test the system effectively.
+## Configuration API
+
+The main dataclasses are:
+
+- `LoggingConfig`
+- `APIConfig`
+- `SecurityConfig`
+- `PerformanceConfig`
+- `EngineConfig`
+- `TelegramConfig`
+- `ExecutionConfig`
+- `CacheConfig`
+- `CostConfig`
+- `UserConfig`
+- `PlatformConfig`
+- `Config`
+- `ConfigManager`
+
+`Config.get("a.b.c", default)` performs dot-notation lookup.
+
+## Security API
+
+| Class/function | Purpose |
+| --- | --- |
+| `SecurityCheckResult` | Dataclass describing command safety result. |
+| `SensitiveDataMasker` | Masks secrets in strings/dicts. |
+| `CommandSecurityChecker` | Checks commands against configured blocking/warning rules. |
+| `SandboxManager` | Detects and wraps commands with sandbox tools. |
+| `SecurityManager` | Combines checks, masking, and sandbox preparation. |
+| `get_security_config_from_env()` | Build security config from environment variables. |
+| `get_security_manager(...)` | Create configured security manager. |
+| `mask_sensitive_data(text)` | Convenience redaction function. |
+| `check_command_safety(command, config=None)` | Convenience command safety function. |
+| `create_secure_config(...)` | Create strict/permissive security config. |
+
+## Cost API
+
+`CostManager` supports:
+
+- Cost estimation by provider/model/token counts.
+- Daily, monthly, and per-request budget checks.
+- Cheaper alternative suggestions.
+- Warning and critical budget alerts.
+- Usage tracking and persistence.
+
+## Plugin API
+
+Plugins can implement hook methods such as:
+
+- `vexis_initialize(config)`
+- `vexis_pre_execute(command, context)`
+- `vexis_post_execute(command, result, context)`
+- `vexis_pre_phase(phase, context)`
+- `vexis_on_error(error, context)`
+- `vexis_get_commands()`
+
+The plugin manager can register/unregister plugins, execute hooks, collect custom commands, and expose a global singleton.
+
+## Telegram API
+
+The Telegram layer provides:
+
+- Bot startup/shutdown.
+- Authorized message handling.
+- Bounded outbound queue.
+- Conversation history.
+- Overlapping task cancellation.
+- Restart callback support.
+- Output recipient routing.
+- Message callback for processing incoming instructions.
